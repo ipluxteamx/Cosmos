@@ -160,10 +160,30 @@ namespace Cosmos.Core
         /// <param name="block">MemoryBlock to copy.</param>
         public unsafe void Copy(MemoryBlock block)
         {
-            byte* xDest = (byte*)(Offset);
+            byte* xDest = (byte*)Offset;
             byte* aDataPtr = (byte*)block.Base;
 
             MemoryOperations.Copy(xDest, aDataPtr, (int)block.Size);
+        }
+
+        /// <summary>
+        /// Copies data from the memory block to the specified array.
+        /// </summary>
+        /// <param name="aStart">The start index in the memory block from which to begin copying.</param>
+        /// <param name="aData">The array into which data will be copied.</param>
+        /// <param name="aIndex">The starting index in the array where data will be copied.</param>
+        /// <param name="aCount">The number of elements to copy.</param>
+        public unsafe void Get(int aStart, int[] aData, int aIndex, int aCount)
+        {
+            int* xSrc;
+            fixed (byte* aArrayPtr = memory)
+            {
+                xSrc = (int*)aArrayPtr + aStart;
+            }
+            fixed (int* aDataPtr = aData)
+            {
+                MemoryOperations.Copy(aDataPtr + aIndex, xSrc, aCount);
+            }
         }
 
         /// <summary>
@@ -192,7 +212,7 @@ namespace Cosmos.Core
                 throw new ArgumentOutOfRangeException(nameof(aByteOffset));
             }
 
-            return *((ushort*)(Offset + aByteOffset));
+            return *(ushort*)(Offset + aByteOffset);
         }
 
         /// <summary>
@@ -207,7 +227,7 @@ namespace Cosmos.Core
             {
                 throw new ArgumentOutOfRangeException(nameof(aByteOffset));
             }
-            *((ushort*)(Offset + aByteOffset)) = value;
+            *(ushort*)(Offset + aByteOffset) = value;
         }
 
         /// <summary>
@@ -223,7 +243,7 @@ namespace Cosmos.Core
                 throw new ArgumentOutOfRangeException(nameof(aByteOffset));
             }
 
-            return *((uint*)(Offset + aByteOffset));
+            return *(uint*)(Offset + aByteOffset);
         }
 
         /// <summary>
@@ -238,7 +258,7 @@ namespace Cosmos.Core
             {
                 throw new ArgumentOutOfRangeException(nameof(aByteOffset));
             }
-            *((uint*)(Offset + aByteOffset)) = value;
+            *(uint*)(Offset + aByteOffset) = value;
         }
 
         /// <summary>

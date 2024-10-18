@@ -11,13 +11,13 @@ namespace Cosmos.HAL.BlockDevice
 {
     public class AHCI
     {
-        internal static Debugger mAHCIDebugger = new Debugger("HAL", "AHCI");
-        internal static PCIDevice xDevice = HAL.PCI.GetDeviceClass(HAL.ClassID.MassStorageController,
-                                                                   HAL.SubclassID.SATAController,
-                                                                   HAL.ProgramIF.SATA_AHCI);
+        internal static Debugger ahciDebugger = new Debugger("AHCI");
+        internal static PCIDevice device = PCI.GetDeviceClass(ClassID.MassStorageController,
+                                                                   SubclassID.SATAController,
+                                                                   ProgramIF.SATA_AHCI);
 
-        private static List<StoragePort> mPorts = new List<StoragePort>();
-        private static GenericRegisters mGeneric;
+        private static List<StoragePort> ports = new List<StoragePort>();
+        private static GenericRegisters generic;
         private static ulong mABAR;
 
         // Capabilities
@@ -49,21 +49,18 @@ namespace Cosmos.HAL.BlockDevice
 
         // Informations
         public string SerialNo;
-        public string Version
-        {
-            get => ((byte)mGeneric.AHCIVersion >> 24) + (byte)(mGeneric.AHCIVersion >> 16) + "." + (byte)(mGeneric.AHCIVersion >> 8) + ((byte)(mGeneric.AHCIVersion) > 0 ? "." + (byte)mGeneric.AHCIVersion : "");
-        }
+        public string Version => ((byte)generic.AHCIVersion >> 24) + (byte)(generic.AHCIVersion >> 16) + "." + (byte)(generic.AHCIVersion >> 8) + ((byte)generic.AHCIVersion > 0 ? "." + (byte)generic.AHCIVersion : "");
 
         internal static void InitDriver()
         {
 
-            if (xDevice != null)
+            if (device != null)
             {
-                AHCI Driver = new AHCI(xDevice);
+                AHCI Driver = new(device);
             }
         }
 
-        internal PCIDevice GetDevice() => xDevice;
+        internal PCIDevice GetDevice() => device;
 
         public AHCI(PCIDevice aAHCIDevice)
         {
@@ -71,24 +68,24 @@ namespace Cosmos.HAL.BlockDevice
             aAHCIDevice.EnableMemory(true);
 
             mABAR = aAHCIDevice.BaseAddressBar[5].BaseAddress;
-            mGeneric = new GenericRegisters(aAHCIDevice.BaseAddressBar[5].BaseAddress);
-            mGeneric.GlobalHostControl |= (1U << 31); // Enable AHCI
+            generic = new GenericRegisters(aAHCIDevice.BaseAddressBar[5].BaseAddress);
+            generic.GlobalHostControl |= 1U << 31; // Enable AHCI
 
             GetCapabilities();
-            mPorts.Capacity = (int)NumOfPorts;
+            ports.Capacity = (int)NumOfPorts;
             GetPorts();
 
-            foreach (StoragePort xPort in mPorts)
+            foreach (StoragePort xPort in ports)
             {
                 if (xPort.mPortType == PortType.SATA)
                 {
-                    mAHCIDebugger.Send($"{xPort.mPortName} Port 0:{xPort.mPortNumber}");
+                    ahciDebugger.Send($"{xPort.mPortName} Port 0:{xPort.mPortNumber}");
 
                     IDE.ScanAndInitPartitions(xPort);
                 }
                 else if (xPort.mPortType == PortType.SATAPI)
                 {
-                    mAHCIDebugger.Send($"{xPort.mPortName} Port 0:{xPort.mPortNumber}");
+                    ahciDebugger.Send($"{xPort.mPortName} Port 0:{xPort.mPortNumber}");
 
                     // Just to test Read Sector!
 
@@ -118,62 +115,60 @@ namespace Cosmos.HAL.BlockDevice
 
         public static void HBAReset()
         {
-            mGeneric.GlobalHostControl = 1;
+            generic.GlobalHostControl = 1;
             uint HR = 0;
             do
             {
                 Wait(1);
-                HR = mGeneric.GlobalHostControl & 1;
+                HR = generic.GlobalHostControl & 1;
             } while (HR != 0);
         }
 
         public static void Wait(int microsecondsTimeout)
         {
-            byte xVoid;
             for (int i = 0; i < microsecondsTimeout; i++)
             {
-                // Random IOPort
-                xVoid = Core.Global.BaseIOGroups.TextScreen.Data1.Byte;
-                xVoid = Core.Global.BaseIOGroups.TextScreen.Data1.Byte;
-                xVoid = Core.Global.BaseIOGroups.TextScreen.Data1.Byte;
-                xVoid = Core.Global.BaseIOGroups.TextScreen.Data1.Byte;
-                xVoid = Core.Global.BaseIOGroups.TextScreen.Data1.Byte;
-                xVoid = Core.Global.BaseIOGroups.TextScreen.Data1.Byte;
-                xVoid = Core.Global.BaseIOGroups.TextScreen.Data1.Byte;
-                xVoid = Core.Global.BaseIOGroups.TextScreen.Data1.Byte;
-                xVoid = Core.Global.BaseIOGroups.TextScreen.Data1.Byte;
-                xVoid = Core.Global.BaseIOGroups.TextScreen.Data1.Byte;
+                IOPort.Wait();
+                IOPort.Wait();
+                IOPort.Wait();
+                IOPort.Wait();
+                IOPort.Wait();
+                IOPort.Wait();
+                IOPort.Wait();
+                IOPort.Wait();
+                IOPort.Wait();
+                IOPort.Wait();
             }
         }
 
         private void GetCapabilities()
         {
-            NumOfPorts = mGeneric.Capabilities & 0x1F;
-            SupportsExternalSATA = (mGeneric.Capabilities >> 5 & 1) == 1;
-            EnclosureManagementSupported = (mGeneric.Capabilities >> 6 & 1) == 1;
-            CommandCompletionCoalsecingSupported = (mGeneric.Capabilities >> 7 & 1) == 1;
-            NumOfCommandSlots = mGeneric.Capabilities >> 8 & 0x1F;
-            PartialStateCapable = (mGeneric.Capabilities >> 13 & 1) == 1;
-            SlumberStateCapable = (mGeneric.Capabilities >> 14 & 1) == 1;
-            PIOMultipleDRQBlock = (mGeneric.Capabilities >> 15 & 1) == 1;
-            FISBasedSwitchingSupported = (mGeneric.Capabilities >> 16 & 1) == 1;
-            SupportsPortMutliplier = (mGeneric.Capabilities >> 17 & 1) == 1;
-            SupportsAHCIModeOnly = (mGeneric.Capabilities >> 18 & 1) == 1;
-            InterfaceSpeedSupport = mGeneric.Capabilities >> 20 & 0x0F;
-            SupportsCommandListOverride = (mGeneric.Capabilities >> 24 & 1) == 1;
-            SupportsActivityLED = (mGeneric.Capabilities >> 25 & 1) == 1;
-            SupportsAggressiveLinkPowerManagement = (mGeneric.Capabilities >> 26 & 1) == 1;
-            SupportsStaggeredSpinup = (mGeneric.Capabilities >> 27 & 1) == 1;
-            SupportsMechanicalPresenceSwitch = (mGeneric.Capabilities >> 28 & 1) == 1;
-            SupportsSNotificationRegister = (mGeneric.Capabilities >> 29 & 1) == 1;
-            SupportsNativeCommandQueuing = (mGeneric.Capabilities >> 30 & 1) == 1;
-            Supports64bitAddressing = (mGeneric.Capabilities >> 31 & 1) == 1;
+            NumOfPorts = generic.Capabilities & 0x1F;
+            SupportsExternalSATA = (generic.Capabilities >> 5 & 1) == 1;
+            EnclosureManagementSupported = (generic.Capabilities >> 6 & 1) == 1;
+            CommandCompletionCoalsecingSupported = (generic.Capabilities >> 7 & 1) == 1;
+            NumOfCommandSlots = generic.Capabilities >> 8 & 0x1F;
+            PartialStateCapable = (generic.Capabilities >> 13 & 1) == 1;
+            SlumberStateCapable = (generic.Capabilities >> 14 & 1) == 1;
+            PIOMultipleDRQBlock = (generic.Capabilities >> 15 & 1) == 1;
+            FISBasedSwitchingSupported = (generic.Capabilities >> 16 & 1) == 1;
+            SupportsPortMutliplier = (generic.Capabilities >> 17 & 1) == 1;
+            SupportsAHCIModeOnly = (generic.Capabilities >> 18 & 1) == 1;
+            InterfaceSpeedSupport = generic.Capabilities >> 20 & 0x0F;
+            SupportsCommandListOverride = (generic.Capabilities >> 24 & 1) == 1;
+            SupportsActivityLED = (generic.Capabilities >> 25 & 1) == 1;
+            SupportsAggressiveLinkPowerManagement = (generic.Capabilities >> 26 & 1) == 1;
+            SupportsStaggeredSpinup = (generic.Capabilities >> 27 & 1) == 1;
+            SupportsMechanicalPresenceSwitch = (generic.Capabilities >> 28 & 1) == 1;
+            SupportsSNotificationRegister = (generic.Capabilities >> 29 & 1) == 1;
+            SupportsNativeCommandQueuing = (generic.Capabilities >> 30 & 1) == 1;
+            Supports64bitAddressing = (generic.Capabilities >> 31 & 1) == 1;
         }
 
         private void GetPorts()
         {
             // Search for disks
-            var xImplementedPort = mGeneric.ImplementedPorts;
+            var xImplementedPort = generic.ImplementedPorts;
             var xPort = 0;
             for (; xPort < 32; xPort++)
             {
@@ -182,31 +177,33 @@ namespace Cosmos.HAL.BlockDevice
                     PortRegisters xPortReg = new PortRegisters((uint)mABAR + 0x100, (uint)xPort);
                     PortType PortType = CheckPortType(xPortReg);
                     xPortReg.mPortType = PortType;
-                    var xPortString = "0:" + ((xPort.ToString().Length <= 1) ? xPort.ToString().PadLeft(1, '0') : xPort.ToString());
+                    var xPortString = "0:" + (xPort.ToString().Length <= 1 ? xPort.ToString().PadLeft(1, '0') : xPort.ToString());
                     if (PortType == PortType.SATA) // If Port type was SATA.
                     {
-                        mAHCIDebugger.Send("Initializing Port " + xPortString + " with type SATA");
+                        ahciDebugger.Send("Initializing Port " + xPortString + " with type SATA");
                         PortRebase(xPortReg, (uint)xPort);
-                        var xSATAPort = new SATA(xPortReg);
-                        mPorts.Add(xSATAPort);
+                        SATA xSATAPort = new(xPortReg);
+                        ports.Add(xSATAPort);
                     }
                     else if (PortType == PortType.SATAPI) // If Port type was SATAPI.
                     {
-                        mAHCIDebugger.Send("Initializing Port " + xPortString + " with type Serial ATAPI");
+                        ahciDebugger.Send("Initializing Port " + xPortString + " with type Serial ATAPI");
                         //PortRebase(xPortReg, (uint)xPort);
                         //var xSATAPIPort = new SATAPI(xPortReg);
                         //mPorts.Add(xSATAPIPort);
                     }
                     else if (PortType == PortType.SEMB) // If Port type was SEMB.
                     {
-                        mAHCIDebugger.Send("SEMB Drive at port " + xPortString + " found, which is not supported yet!");
+                        ahciDebugger.Send("SEMB Drive at port " + xPortString + " found, which is not supported yet!");
                     }
                     else if (PortType == PortType.PM) // If Port type was Port Mulitplier.
                     {
-                        mAHCIDebugger.Send("Port Multiplier Drive at port " + xPortString + " found, which is not supported yet!");
+                        ahciDebugger.Send("Port Multiplier Drive at port " + xPortString + " found, which is not supported yet!");
                     }
                     else if (PortType != PortType.Nothing)
+                    {
                         throw new Exception("SATA Error");
+                    }
                 }
                 xImplementedPort >>= 1;
             }
@@ -240,11 +237,11 @@ namespace Cosmos.HAL.BlockDevice
 
         private void PortRebase(PortRegisters aPort, uint aPortNumber)
         {
-            mAHCIDebugger.Send("Stop");
+            ahciDebugger.Send("Stop");
             if (!StopCMD(aPort)) SATA.PortReset(aPort);
 
-            aPort.CLB = (uint)Base.AHCI + (0x400 * aPortNumber);
-            aPort.FB = (uint)Base.AHCI + 0x8000 + (0x100 * aPortNumber);
+            aPort.CLB = (uint)Base.AHCI + 0x400 * aPortNumber;
+            aPort.FB = (uint)Base.AHCI + 0x8000 + 0x100 * aPortNumber;
 
             aPort.SERR = 1;
             aPort.IS = 0;
@@ -260,7 +257,7 @@ namespace Cosmos.HAL.BlockDevice
             aPort.IS = 0;
             aPort.IE = 0xFFFFFFFF;
 
-            mAHCIDebugger.Send("Finished!");
+            ahciDebugger.Send("Finished!");
         }
 
         private static HBACommandHeader[] GetCommandHeader(PortRegisters aPort)
@@ -272,7 +269,7 @@ namespace Cosmos.HAL.BlockDevice
                 {
                     PRDTL = 8,
 
-                    CTBA = (uint)(Base.AHCI + 0xA000) + (0x2000 * aPort.mPortNumber) + (0x100 * i),
+                    CTBA = (uint)(Base.AHCI + 0xA000) + 0x2000 * aPort.mPortNumber + 0x100 * i,
 
                     CTBAU = 0
                 };
@@ -291,8 +288,8 @@ namespace Cosmos.HAL.BlockDevice
             }
             if (xSpin == 101) return false;
 
-            aPort.CMD |= (1 << 4);
-            aPort.CMD |= (1 << 0);
+            aPort.CMD |= 1 << 4;
+            aPort.CMD |= 1 << 0;
 
             return true;
         }
@@ -312,7 +309,7 @@ namespace Cosmos.HAL.BlockDevice
 
             for (xSpin = 0; xSpin < 101; xSpin++)
             {
-                if ((aPort.CI == 0)) break;
+                if (aPort.CI == 0) break;
                 Wait(50);
             }
             if (xSpin == 101) return false;
@@ -323,7 +320,7 @@ namespace Cosmos.HAL.BlockDevice
             {
                 if ((aPort.TFD & (uint)ATADeviceStatus.Busy) != 0)
                 {
-                    aPort.CMD |= (1U << 3);
+                    aPort.CMD |= 1U << 3;
                 }
             }
 
@@ -338,7 +335,7 @@ namespace Cosmos.HAL.BlockDevice
             if (xSpin == 101)
             {
                 if (SupportsCommandListOverride)
-                    aPort.CMD |= (1U << 3);
+                    aPort.CMD |= 1U << 3;
                 else
                     aPort.CMD &= ~(1U << 3);
                 return false;

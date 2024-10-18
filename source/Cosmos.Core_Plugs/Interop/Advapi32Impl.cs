@@ -7,7 +7,7 @@ using IL2CPU.API.Attribs;
 
 namespace Cosmos.Core_Plugs.Interop
 {
-    [Plug("Interop+Advapi32, System.Private.CoreLib")]
+    [Plug("Interop+Advapi32, System.Private.CoreLib", IsOptional = true)]
     class Advapi32Impl
     {
         [PlugMethod(Signature = "System_Int32__Interop_Advapi32_EventActivityIdControl_Interop_Advapi32_ActivityControl___System_Guid_")]
@@ -91,6 +91,12 @@ namespace Cosmos.Core_Plugs.Interop
         [PlugMethod(Signature = "System_Int32__Interop_Advapi32_RegEnumKeyEx_Internal_Win32_SafeHandles_SafeRegistryHandle__System_Int32__System_Char_____System_Int32__System_Int32____System_Char____System_Int32____System_Int64___")]
         public static int RegEnumKeyEx(object aSafeRegistryHandle, int aInt, char[] aCharArray, ref int aInt1, int[] aIntArray,
             char[] aCharArray1, int[] aIntArray1, long[] alongArray)
+        {
+            throw new NotImplementedException();
+        }
+
+        [PlugMethod(Signature = "System_Int32__Interop_Advapi32_EventSetInformation_System_Int64__Interop_Advapi32_EVENT_INFO_CLASS__System_Void___System_UInt32_")]
+        public static unsafe int EventSetInformation(long registrationHandle, object informationClass, void* eventInformation, uint informationLength)
         {
             throw new NotImplementedException();
         }

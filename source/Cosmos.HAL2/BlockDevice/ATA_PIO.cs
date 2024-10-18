@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Threading;
 using Cosmos.Common;
+using Cosmos.Core;
 using Cosmos.Debug.Kernel;
 
 namespace Cosmos.HAL.BlockDevice
@@ -32,31 +33,19 @@ namespace Cosmos.HAL.BlockDevice
         protected Core.IOGroup.ATA IO;
 
 		protected SpecLevel mDriveType = SpecLevel.Null;
-		public SpecLevel DriveType
-		{
-			get { return mDriveType; }
-		}
+        public SpecLevel DriveType => mDriveType;
 
-		protected string mSerialNo;
-		public string SerialNo
-		{
-			get { return mSerialNo; }
-		}
+        protected string mSerialNo;
+        public string SerialNo => mSerialNo;
 
-		protected string mFirmwareRev;
-		public string FirmwareRev
-		{
-			get { return mFirmwareRev; }
-		}
+        protected string mFirmwareRev;
+        public string FirmwareRev => mFirmwareRev;
 
-		protected string mModelNo;
-		public string ModelNo
-		{
-			get { return mModelNo; }
-		}
-		#endregion
-		#region Enums
-		[Flags]
+        protected string mModelNo;
+        public string ModelNo => mModelNo;
+        #endregion
+        #region Enums
+        [Flags]
 		public enum Status : byte
 		{
 			None = 0x00,
@@ -102,6 +91,7 @@ namespace Cosmos.HAL.BlockDevice
 			ReadPioExt = 0x24,
 			ReadDma = 0xC8,
 			ReadDmaExt = 0x25,
+            ReadNativeMaxAdressExt =0x27,
 			WritePio = 0x30,
 			WritePioExt = 0x34,
 			WriteDma = 0xCA,
@@ -112,8 +102,9 @@ namespace Cosmos.HAL.BlockDevice
 			IdentifyPacket = 0xA1,
 			Identify = 0xEC,
 			Read = 0xA8,
-			Eject = 0x1B
-		}
+			Eject = 0x1B,
+            ReadNativeMaxAdress = 0xF8
+        }
 
 		public enum Ident : byte
 		{
@@ -139,7 +130,7 @@ namespace Cosmos.HAL.BlockDevice
 		}
 		#endregion
 
-	    internal static Debugger mDebugger = new Debugger("HAL", "AtaPio");
+	    internal static Debugger mDebugger = new("AtaPIO");
 
         /// <summary>
         /// Internal Debugger method
@@ -173,9 +164,9 @@ namespace Cosmos.HAL.BlockDevice
 			mControllerID = aControllerId;
 			mBusPosition = aBusPosition;
 			// Disable IRQs, we use polling currently
-			IO.Control.Byte = 0x02;
+			IOPort.Write8(IO.Control, 0x02);
 
-			mDriveType = DiscoverDrive();
+            mDriveType = DiscoverDrive();
 			if (mDriveType != SpecLevel.Null)
 			{
 				InitDrive();
@@ -196,7 +187,7 @@ namespace Cosmos.HAL.BlockDevice
 
 			// Read status before sending command. If 0xFF, it's a floating
 			// bus (nothing connected)
-			if (IO.Status.Byte == 0xFF)
+			if (IOPort.Read8(IO.Status) == 0xFF)
 			{
 				return SpecLevel.Null;
 			}
@@ -212,7 +203,7 @@ namespace Cosmos.HAL.BlockDevice
 				// Can look in Error port for more info
 				// Device is not ATA
 				// This is also triggered by ATAPI devices
-				int xTypeId = IO.LBA2.Byte << 8 | IO.LBA1.Byte;
+				int xTypeId = IOPort.Read8(IO.LBA2) << 8 | IOPort.Read8(IO.LBA1);
 				if (xTypeId == 0xEB14 || xTypeId == 0x9669)
 				{
 					return SpecLevel.ATAPI;
@@ -239,22 +230,20 @@ namespace Cosmos.HAL.BlockDevice
 		// Since we read status again later, we wait by reading it 4 times.
 		protected void Wait()
 		{
-			// Wait 400 ns
-			byte xVoid;
-			xVoid = IO.Status.Byte;
-			xVoid = IO.Status.Byte;
-			xVoid = IO.Status.Byte;
-			xVoid = IO.Status.Byte;
+            IOPort.Wait();
+            IOPort.Wait();
+            IOPort.Wait();
+            IOPort.Wait();
 		}
 
         /// <summary>
-        /// Selects the drive 
+        /// Selects the drive
         /// </summary>
         /// <param name="aLbaHigh4"></param>
 		public void SelectDrive(byte aLbaHigh4)
 		{
-			IO.DeviceSelect.Byte = (byte)((byte)(DvcSelVal.Default | DvcSelVal.LBA | (mBusPosition == BusPositionEnum.Slave ? DvcSelVal.Slave : 0)) | aLbaHigh4);
-			Wait();
+            IOPort.Write8(IO.DeviceSelect, (byte)((byte)(DvcSelVal.Default | DvcSelVal.LBA | (mBusPosition == BusPositionEnum.Slave ? DvcSelVal.Slave : 0)) | aLbaHigh4));
+            Wait();
 		}
 
         /// <summary>
@@ -275,12 +264,12 @@ namespace Cosmos.HAL.BlockDevice
         /// <returns></returns>
 		public Status SendCmd(Cmd aCmd, bool aThrowOnError)
 		{
-			IO.Command.Byte = (byte)aCmd;
+            IOPort.Write8(IO.Command, (byte)aCmd);
 			Status xStatus;
 			do
 			{
 				Wait();
-				xStatus = (Status)IO.Status.Byte;
+				xStatus = (Status)IOPort.Read8(IO.Status);
 			} while ((xStatus & Status.Busy) != 0);
 
 			// Error occurred
@@ -296,7 +285,7 @@ namespace Cosmos.HAL.BlockDevice
 		}
 
         /// <summary>
-        /// 
+        ///
         /// </summary>
         /// <param name="aBuffer"></param>
         /// <param name="aIndexStart"></param>
@@ -307,7 +296,7 @@ namespace Cosmos.HAL.BlockDevice
             //Convert ushort[] to byte[]
             byte[] array = new byte[aStringLength];
             int counter = 0;
-            for (int i = aIndexStart; i < aIndexStart + (aStringLength / 2); i++)
+            for (int i = aIndexStart; i < aIndexStart + aStringLength / 2; i++)
             {
                 var item = aBuffer[i];
                 var bytes = BitConverter.GetBytes(item);
@@ -347,7 +336,7 @@ namespace Cosmos.HAL.BlockDevice
 
 			// Read Identification Space of the Device
 			var xBuff = new ushort[256];
-			IO.Data.Read16(xBuff);
+            IOPort.Read16(IO.Data, xBuff);
 			mSerialNo = GetString(xBuff, 10, 20);
 			mFirmwareRev = GetString(xBuff, 23, 8);
 			mModelNo = GetString(xBuff, 27, 40);
@@ -382,21 +371,21 @@ namespace Cosmos.HAL.BlockDevice
 			SelectDrive((byte)(aSectorNo >> 24));
 			if (LBA48Bit)
 			{
-				IO.SectorCount.Word = (ushort)aSectorCount;
-				IO.LBA0.Byte = (byte)(aSectorNo >> 24);
-				IO.LBA0.Byte = (byte)(aSectorNo);
-				IO.LBA1.Byte = (byte)(aSectorNo >> 32);
-				IO.LBA1.Byte = (byte)(aSectorNo >> 8);
-				IO.LBA2.Byte = (byte)(aSectorNo >> 40);
-				IO.LBA2.Byte = (byte)(aSectorNo >> 16);
+                IOPort.Write16(IO.SectorCount, (ushort)aSectorCount);
+                IOPort.Write8(IO.LBA0, (byte)(aSectorNo >> 24));
+                IOPort.Write8(IO.LBA0, (byte)aSectorNo);
+                IOPort.Write8(IO.LBA1, (byte)(aSectorNo >> 32));
+                IOPort.Write8(IO.LBA1, (byte)(aSectorNo >> 8));
+                IOPort.Write8(IO.LBA2, (byte)(aSectorNo >> 40));
+                IOPort.Write8(IO.LBA2, (byte)(aSectorNo >> 16));
 			}
 			else
 			{
 				// Number of sectors to read
-				IO.SectorCount.Byte = (byte)aSectorCount;
-				IO.LBA0.Byte = (byte)(aSectorNo);
-				IO.LBA1.Byte = (byte)(aSectorNo >> 8);
-				IO.LBA2.Byte = (byte)(aSectorNo >> 16);
+                IOPort.Write8(IO.SectorCount, (byte)aSectorCount);
+                IOPort.Write8(IO.LBA0, (byte)aSectorNo);
+                IOPort.Write8(IO.LBA1, (byte)(aSectorNo >> 8));
+                IOPort.Write8(IO.LBA2, (byte)(aSectorNo >> 16));
 				//IO.LBA0.Byte = (byte)(aSectorNo & 0xFF);
 				//IO.LBA1.Byte = (byte)((aSectorNo & 0xFF00) >> 8);
 				//IO.LBA2.Byte = (byte)((aSectorNo & 0xFF0000) >> 16);
@@ -415,8 +404,8 @@ namespace Cosmos.HAL.BlockDevice
 			CheckDataSize(aData, aBlockCount);
 			SelectSector(aBlockNo, aBlockCount);
 			SendCmd(LBA48Bit ? Cmd.ReadPioExt : Cmd.ReadPio);
-			IO.Data.Read8(aData);
-		}
+            IOPort.Read8(IO.Data, aData);
+        }
 
         /// <summary>
         /// Writes the specific block of data using the starting block,
@@ -431,22 +420,13 @@ namespace Cosmos.HAL.BlockDevice
             SelectSector(aBlockNo, aBlockCount);
 			SendCmd(LBA48Bit ? Cmd.WritePioExt : Cmd.WritePio);
 
-            ushort xValue;
+            IOPort.WriteMany8WithWait(IO.Data, aData);
 
-			for (long i = 0; i < aData.Length / 2; i++)
-			{
-				xValue = (ushort)((aData[i * 2 + 1] << 8) | aData[i * 2]);
-				IO.Data.Word = xValue;
-				Wait();
-				// There must be a tiny delay between each OUTSW output word. A jmp $+2 size of delay.
-				// But that delay is cpu specific? so how long of a delay?
-			}
-
-			SendCmd(Cmd.CacheFlush);
+            SendCmd(Cmd.CacheFlush);
 		}
 
         /// <summary>
-        /// 
+        ///
         /// </summary>
         /// <returns></returns>
 	    public override string ToString()

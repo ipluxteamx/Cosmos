@@ -54,6 +54,10 @@ namespace Cosmos.Build.Tasks
 
         public bool CompileVBEMultiboot { get; set; }
 
+        public bool RemoveBootDebugOutput { get; set; }
+
+        public bool AllowComments { get; set; }
+
         public string VBEResolution { get; set; }
 
         #endregion
@@ -66,12 +70,13 @@ namespace Cosmos.Build.Tasks
         public IL2CPU()
         {
             CompileVBEMultiboot = false;
+            AllowComments = false;
             VBEResolution = "800x600x32";
         }
 
         protected override string GenerateFullPathToTool()
         {
-            if (String.IsNullOrWhiteSpace(ToolPath))
+            if (string.IsNullOrWhiteSpace(ToolPath))
             {
                 return Path.Combine(CosmosBuildDir, IsWindows() ? @"IL2CPU\IL2CPU.exe" : "IL2CPU/IL2CPU");
             }
@@ -97,6 +102,8 @@ namespace Cosmos.Build.Tasks
                 ["IgnoreDebugStubAttribute"] = IgnoreDebugStubAttribute.ToString(),
                 ["CompileVBEMultiboot"] = CompileVBEMultiboot.ToString(),
                 ["VBEResolution"] = VBEResolution.ToString(),
+                ["RemoveBootDebugOutput"] = RemoveBootDebugOutput.ToString(),
+                ["AllowComments"] = AllowComments.ToString()
             }.ToList();
 
             foreach (var reference in References)

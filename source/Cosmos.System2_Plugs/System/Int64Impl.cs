@@ -1,7 +1,4 @@
-using System;
-
 using Cosmos.Common;
-
 using IL2CPU.API.Attribs;
 
 namespace Cosmos.System_Plugs.System
@@ -42,7 +39,7 @@ namespace Cosmos.System_Plugs.System
                 {
                     throw new FormatException();
                 }
-                result = (result * 10) + ind;
+                result = result * 10 + ind;
             }
 
             if (neg)

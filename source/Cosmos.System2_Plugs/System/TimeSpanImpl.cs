@@ -1,6 +1,4 @@
-﻿using System;
-
-using IL2CPU.API.Attribs;
+﻿using IL2CPU.API.Attribs;
 
 namespace Cosmos.System_Plugs.System
 {
@@ -25,7 +23,7 @@ namespace Cosmos.System_Plugs.System
                     aThis.Minutes.ToString().PadLeft(2, '0') + ":" +
                     aThis.Seconds.ToString().PadLeft(2, '0');
 
-            if ((aThis.Ticks - (long)aThis.TotalSeconds * 1000 * 10000) != 0)
+            if (aThis.Ticks - (long)aThis.TotalSeconds * 1000 * 10000 != 0)
             {
                 time += "." + (aThis.Ticks - (long)aThis.TotalSeconds * 1000 * 10000).ToString().PadLeft(7, '0');
             }

@@ -1,4 +1,5 @@
-﻿using Cosmos.Debug.Kernel;
+﻿using Cosmos.Core.Multiboot;
+using Cosmos.Debug.Kernel;
 
 namespace Cosmos.Core
 {
@@ -17,12 +18,6 @@ namespace Cosmos.Core
         /// PIC interrupt.
         /// </summary>
         static public PIC PIC;
-
-        // Has to be static for now, ZeroFill gets called before the Init.
-        /// <summary>
-        /// CPU.
-        /// </summary>
-        //static public readonly CPU CPU = new CPU();
 
         // Bootstrap is a class designed only to get the essentials done.
         // ie the stuff needed to "pre boot". Do only the very minimal here.

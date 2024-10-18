@@ -47,6 +47,14 @@ namespace Cosmos.Kernel.Tests.DiskManager
 
             mDebugger.Send("START TEST: Format");
 
+            MBR mbr = new MBR(ourDisk.Host);
+
+            mbr.CreateMBR(ourDisk.Host);
+
+            mbr.WritePartitionInformation(new Partition(ourDisk.Host, 512, ourDisk.Host.BlockCount - 1024), 0);
+
+            ourDisk.Mount();
+
             ourDisk.FormatPartition(0, "FAT32", true);
 
             mDebugger.Send("Format done testing HDD is really empty");
@@ -67,6 +75,9 @@ namespace Cosmos.Kernel.Tests.DiskManager
 
             Directory.CreateDirectory(@"0:\SYS\");
             Assert.IsTrue(Directory.GetDirectories(@"0:\SYS\").Length == 0, "Can create a directory and its content is emtpy");
+
+            ourDisk.DeletePartition(0);
+            mDebugger.Send("Partion is Deleted");
 
             mDebugger.Send("END TEST");
         }

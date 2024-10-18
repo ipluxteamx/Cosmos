@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Reflection;
 using IL2CPU.API.Attribs;
 
 namespace Cosmos.System_Plugs.System.Reflection
@@ -21,7 +16,7 @@ namespace Cosmos.System_Plugs.System.Reflection
             throw new NotImplementedException();
         }
 
-        public static bool Equals(object aThis, object aOther)
+        public static new bool Equals(object aThis, object aOther)
         {
             throw new NotImplementedException();
         }

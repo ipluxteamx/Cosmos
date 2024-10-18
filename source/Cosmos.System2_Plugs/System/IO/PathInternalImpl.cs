@@ -1,15 +1,9 @@
-﻿//#define COSMOSDEBUG
-
-using System;
-using System.IO;
-
-using IL2CPU.API.Attribs;
-
+﻿using IL2CPU.API.Attribs;
 using Cosmos.System;
 
 namespace Cosmos.System_Plugs.System.IO
 {
-    [Plug(TargetName = "System.IO.PathInternal, System.IO.FileSystem")]
+   // [Plug(TargetName = "System.IO.PathInternal, System.IO.FileSystem")]
     public static class PathInternalImpl
     {
         /*
@@ -19,7 +13,7 @@ namespace Cosmos.System_Plugs.System.IO
          */
         public static bool GetIsCaseSensitive()
         {
-            Global.mFileSystemDebugger.SendInternal($"GetIsCaseSensitive() called false always returned");
+            Global.Debugger.SendInternal($"GetIsCaseSensitive() called false always returned");
             return false;
         }
 

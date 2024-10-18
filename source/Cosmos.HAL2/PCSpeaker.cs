@@ -19,21 +19,36 @@ namespace Cosmos.HAL
     }
     public class PCSpeaker
     {
-        protected static Core.IOGroup.PCSpeaker IO = BaseIOGroups.PCSpeaker;
+        // IO Port 61, channel 2 gate
+        /// <summary>
+        /// Gate IO port.
+        /// </summary>
+        public const int Gate = 0x61;
+        // These two ports are shared with the PIT, so names are the same
+        // IO Port 43
+        /// <summary>
+        /// Command register IO port.
+        /// </summary>
+        public const int CommandRegister = 0x43;
+        // IO Port 42
+        /// <summary>
+        /// Channel to data IO port.
+        /// </summary>
+        public const int Channel2Data = 0x42;
 
         /// <summary>
         /// Enable sound.
         /// </summary>
         private static void EnableSound()
         {
-            IO.Gate.Byte = (byte)(IO.Gate.Byte | 0x03);
+            IOPort.Write8(Gate, (byte)(IOPort.Read8(Gate) | 0x03));
         }
         /// <summary>
         /// Disable sound.
         /// </summary>
         private static void DisableSound()
         {
-            IO.Gate.Byte = (byte)(IO.Gate.Byte & ~3);
+            IOPort.Write8(Gate, (byte)(IOPort.Read8(Gate) & ~3));
             //IO.Port61.Byte = (byte)(IO.Port61.Byte | 0xFC);
         }
 
@@ -46,18 +61,17 @@ namespace Cosmos.HAL
         {
             if (frequency < 37 || frequency > 32767)
             {
-                throw new ArgumentOutOfRangeException("Frequency must be between 37 and 32767Hz");
+                throw new ArgumentOutOfRangeException(nameof(frequency), "Value must be between 37 and 32767Hz!");
             }
 
             uint divisor = 1193180 / frequency;
-            byte temp;
-            IO.CommandRegister.Byte = 0xB6;
-            IO.Channel2Data.Byte = (byte)(divisor & 0xFF);
-            IO.Channel2Data.Byte = (byte)((divisor >> 8) & 0xFF);
-            temp = IO.Gate.Byte;
+            IOPort.Write8(CommandRegister, 0xB6);
+            IOPort.Write8(Channel2Data, (byte)(divisor & 0xFF));
+            IOPort.Write8(Channel2Data, (byte)((divisor >> 8) & 0xFF));
+            var temp = IOPort.Read8(Gate);
             if (temp != (temp | 3))
             {
-                IO.Gate.Byte = (byte)(temp | 3);
+                IOPort.Write8(Gate, (byte)(temp | 3));
             }
             EnableSound();
         }
@@ -71,9 +85,13 @@ namespace Cosmos.HAL
         /// <exception cref="ArgumentOutOfRangeException">Thrown if duration or frequency invalid.</exception>
         public static void Beep(uint frequency, uint duration)
         {
+            if (frequency < 37 || frequency > 32767)
+            {
+                throw new ArgumentOutOfRangeException(nameof(frequency), "Value must be between 37 and 32767Hz!");
+            }
             if (duration <= 0)
             {
-                throw new ArgumentOutOfRangeException("Duration must be more than 0");
+                throw new ArgumentOutOfRangeException(nameof(duration), "Value must be more than 0!");
             }
 
             Beep(frequency);

@@ -1,9 +1,4 @@
-﻿using System;
-using System.IO;
-using System.Runtime.InteropServices;
-using System.Text;
-using Cosmos.Debug.Kernel;
-using IL2CPU.API.Attribs;
+﻿using IL2CPU.API.Attribs;
 
 namespace Cosmos.System_Plugs.System.IO
 {
@@ -12,5 +7,18 @@ namespace Cosmos.System_Plugs.System.IO
     {
         public static void CheckAsyncTaskInProgress(StreamWriter aThis) { }
 
+
+        public static void WriteFormatHelper(StreamWriter aThis, string format, object?[] args, bool appendNewLine)
+        {
+            string formattedString = string.Format(format, args);
+            if (appendNewLine)
+            {
+                aThis.WriteLine(formattedString);
+            }
+            else
+            {
+                aThis.Write(formattedString);
+            }
+        }
     }
 }

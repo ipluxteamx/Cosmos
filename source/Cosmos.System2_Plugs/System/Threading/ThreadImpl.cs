@@ -1,11 +1,9 @@
-using System;
-using System.Threading;
-using Cosmos.HAL;
 using IL2CPU.API.Attribs;
+using Cosmos.HAL;
 
 namespace Cosmos.System_Plugs.System.Threading
 {
-    [Plug(Target = typeof(global::System.Threading.Thread))]
+    [Plug(Target = typeof(Thread))]
     public static class ThreadImpl
     {
         public static void Sleep(TimeSpan timeout)
@@ -33,11 +31,6 @@ namespace Cosmos.System_Plugs.System.Threading
             throw new NotImplementedException();
         }
 
-        public static int GetOptimalMaxSpinWaitsPerSpinIterationInternal()
-        {
-            throw new NotImplementedException();
-        }
-
         public static Thread GetCurrentThreadNative()
         {
             return null;
@@ -49,21 +42,6 @@ namespace Cosmos.System_Plugs.System.Threading
         }
 
         public static void SetBackgroundNative(Thread aThis, bool aBool)
-        {
-            throw new NotImplementedException();
-        }
-
-        public static void StartupSetApartmentStateInternal(Thread aThis)
-        {
-            throw new NotImplementedException();
-        }
-
-        public static void StartInternal(Thread aThis)
-        {
-            throw new NotImplementedException();
-        }
-
-        public static void SetStart(Thread aThis, Delegate aDelegate, int aInt)
         {
             throw new NotImplementedException();
         }

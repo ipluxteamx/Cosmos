@@ -9,12 +9,11 @@ namespace Cosmos.Core_Plugs.System
     [Plug(Target = typeof(object))]
     public static class ObjectImpl
     {
-        private static Debugger mDebugger = new Debugger("IL2CPU", "ObjectImpl");
+        private static Debugger mDebugger = new("ObjectImpl");
 
         public static string ToString(object aThis)
         {
-            mDebugger.Send("<Object.ToString not yet implemented!>");
-            return "<Object.ToString not yet implemented!>";
+            return aThis.GetType().Name;
         }
 
         public static void Ctor(object aThis)
@@ -47,7 +46,7 @@ namespace Cosmos.Core_Plugs.System
                 xThatPointerByte[i] = xThisPointerByte[i];
             }
 
-            ulong xReturn = ((ulong)xResult) << (sizeof(ulong) / 2 * 8);
+            ulong xReturn = (ulong)xResult << (sizeof(ulong) / 2 * 8);
 
             return xReturn;
         }

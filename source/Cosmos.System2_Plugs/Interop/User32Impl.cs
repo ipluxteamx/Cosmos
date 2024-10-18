@@ -1,10 +1,9 @@
 ﻿using IL2CPU.API.Attribs;
-using System;
 using System.Drawing;
 
 namespace Cosmos.System_Plugs.Interop
 {
-    [Plug("Interop+User32, System.Drawing.Primitives")]
+    [Plug("Interop+User32, System.Drawing.Primitives", IsOptional = true)]
     class User32Impl
     {
         static uint[] colorTable;

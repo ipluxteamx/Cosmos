@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net5.0</TargetFramework>
+        <TargetFramework>net6.0</TargetFramework>
         <Platform>cosmos</Platform>
         <SupportsX86Intrinsics>false</SupportsX86Intrinsics>
         <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
@@ -13,6 +13,7 @@
     <ItemGroup>
         <ProjectReference Include="..\..\..\source\Cosmos.Debug.Kernel\Cosmos.Debug.Kernel.csproj" />
         <ProjectReference Include="..\..\..\source\Cosmos.System2\Cosmos.System2.csproj" />
+        <ProjectReference Include="..\..\..\source\Cosmos.Plugs\Cosmos.Plugs.csproj" />
         <ProjectReference Include="..\..\Cosmos.TestRunner.TestController\Cosmos.TestRunner.TestController.csproj" />
     </ItemGroup>
 

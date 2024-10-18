@@ -7,207 +7,237 @@ using Cosmos.System.Graphics.Fonts;
 namespace Cosmos.System.Graphics
 {
     /// <summary>
-    /// Canvas abstract class.
+    /// Represents a drawing surface.
     /// </summary>
     public abstract class Canvas
     {
-        /*
-         * IReadOnlyList<T> is not working, the Modes inside it become corrupted and then you get Stack Overflow
-         */
-        //public abstract IReadOnlyList<Mode> AvailableModes { get; }
-
         /// <summary>
-        /// Available graphics modes.
+        /// The available graphics modes.
         /// </summary>
         public abstract List<Mode> AvailableModes { get; }
 
         /// <summary>
-        /// Get default graphics mode.
+        /// The default graphics mode.
         /// </summary>
-        public abstract Mode DefaultGraphicMode { get; }
+        public abstract Mode DefaultGraphicsMode { get; }
 
         /// <summary>
-        /// Get and set graphics mode.
+        /// The currently used display mode.
         /// </summary>
         public abstract Mode Mode { get; set; }
 
         /// <summary>
-        /// Clear all the Canvas with the Black color.
+        /// Bytes per pixel (4 in 32bit, 3 in 24bit).
         /// </summary>
-        /// <exception cref="ArgumentOutOfRangeException">Thrown on fatal error.</exception>
-        /// <exception cref="Exception">Thrown on memory access violation.</exception>
+        internal int BytesPerPixel;
+
+        /// <summary>
+        /// Stride.
+        /// </summary>
+        internal int Stride;
+
+        /// <summary>
+        /// Pitch.
+        /// </summary>
+        internal int Pitch;
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="Canvas"/> class.
+        /// </summary>
+        public Canvas()
+        {
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="Canvas"/> class.
+        /// </summary>
+        public Canvas(Mode mode)
+        {
+            BytesPerPixel = (int)mode.ColorDepth / 8;
+            Stride = (int)mode.ColorDepth / 8;
+            Pitch = (int)mode.Width * BytesPerPixel;
+        }
+
+        /// <summary>
+        /// Clears the canvas with the default color.
+        /// </summary>
         public void Clear()
         {
             Clear(Color.Black);
         }
 
-        /*
-         * Clear all the Canvas with the specified color. Please note that it is a very naïve implementation and any
-         * driver should replace it (or with an hardware command or if not possible with a block copy on the IoMemoryBlock)
-         */
         /// <summary>
-        /// Clear all the Canvas with the specified color.
+        /// Clears the entire canvas with the specified color.
         /// </summary>
-        /// <param name="color">Color in ARGB.</param>
-        /// <exception cref="ArgumentOutOfRangeException">Thrown on fatal error.</exception>
-        /// <exception cref="Exception">Thrown on memory access violation.</exception>
+        /// <param name="color">The ARGB color to clear the screen with.</param>
         public abstract void Clear(int color);
 
-        /*
-         * Clear all the Canvas with the specified color. Please note that it is a very naïve implementation and any
-         * driver should replace it (or with an hardware command or if not possible with a block copy on the IoMemoryBlock)
-         */
         /// <summary>
-        /// Clear all the Canvas with the specified color.
+        /// Clears the entire canvas with the specified color.
         /// </summary>
-        /// <param name="color">Color.</param>
-        /// <exception cref="ArgumentOutOfRangeException">Thrown on fatal error.</exception>
-        /// <exception cref="Exception">Thrown on memory access violation.</exception>
+        /// <param name="color">The color to clear the screen with.</param>
         public virtual void Clear(Color color)
         {
-            Global.mDebugger.SendInternal($"Clearing the Screen with Color {color}");
-            //if (color == null)
-            //    throw new ArgumentNullException(nameof(color));
-
-            Pen pen = new Pen(color);
-
-            for (int x = 0; x < Mode.Rows; x++)
+            for (int x = 0; x < Mode.Width; x++)
             {
-                for (int y = 0; y < Mode.Columns; y++)
+                for (int y = 0; y < Mode.Height; y++)
                 {
-                    DrawPoint(pen, x, y);
+                    DrawPoint(color, x, y);
                 }
             }
         }
 
         /// <summary>
-        /// Display graphic mode
+        /// Disables the canvas.
         /// </summary>
         public abstract void Disable();
 
         /// <summary>
-        /// Draw point.
+        /// Sets the pixel at the given coordinates to the specified <paramref name="color"/>.
         /// </summary>
-        /// <param name="pen">Pen to draw with.</param>
-        /// <param name="point">Point.</param>
-        /// <exception cref="Exception">Thrown on memory access violation.</exception>
-        public void DrawPoint(Pen pen, Point point)
-        {
-            DrawPoint(pen, point.X, point.Y);
-        }
+        /// <param name="color">The color to draw with.</param>
+        /// <param name="x">The X coordinate.</param>
+        /// <param name="y">The Y coordinate.</param>
+        public abstract void DrawPoint(Color color, int x, int y);
 
         /// <summary>
-        /// Draw point.
+        /// Sets the pixel at the given coordinates to the specified <paramref name="color"/>, without unnecessary color operations.
         /// </summary>
-        /// <param name="pen">Pen to draw with.</param>
-        /// <param name="x">X coordinate.</param>
-        /// <param name="y">Y coordinate.</param>
-        /// <exception cref="Exception">Thrown on memory access violation.</exception>
-        public abstract void DrawPoint(Pen pen, int x, int y);
+        /// <param name="color">The color to draw with (raw argb).</param>
+        /// <param name="x">The X coordinate.</param>
+        /// <param name="y">The Y coordinate.</param>
+        public abstract void DrawPoint(uint color, int x, int y);
 
         /// <summary>
-        /// Draw point to the screen. 
-        /// Not implemented.
+        /// Sets the pixel at the given coordinates to the specified <paramref name="color"/>. without ToArgb()
         /// </summary>
-        /// <param name="pen">Pen to draw the point with.</param>
-        /// <param name="x">X coordinate.</param>
-        /// <param name="y">Y coordinate.</param>
-        /// <exception cref="NotImplementedException">Thrown always (only int coordinats supported).</exception>
-        public abstract void DrawPoint(Pen pen, float x, float y);
+        /// <param name="color">The color to draw with (raw argb).</param>
+        /// <param name="x">The X coordinate.</param>
+        /// <param name="y">The Y coordinate.</param>
+        public abstract void DrawPoint(int color, int x, int y);
 
         /// <summary>
-        /// Name of the backend
+        /// The name of the Canvas implementation.
         /// </summary>
         public abstract string Name();
 
         /// <summary>
-        /// Display screen
+        /// Updates the screen to display the underlying frame-buffer.
+        /// Call this method in order to synchronize the screen with the canvas.
         /// </summary>
         public abstract void Display();
 
         /// <summary>
-        /// Get point color.
+        /// Gets the color of the pixel at the given coordinates.
         /// </summary>
-        /// <param name="x">X coordinate.</param>
-        /// <param name="y">Y coordinate.</param>
-        /// <returns>Color value.</returns>
-        /// <exception cref="Exception">Thrown on memory access violation.</exception>
+        /// <param name="x">The X coordinate.</param>
+        /// <param name="y">The Y coordinate.</param>
         public abstract Color GetPointColor(int x, int y);
 
         /// <summary>
-        /// Get point offset.
+        /// Gets the color of the pixel at the given coordinates in ARGB.
         /// </summary>
-        /// <param name="x">X coordinate.</param>
-        /// <param name="y">Y coordinate.</param>
-        /// <returns>int value.</returns>
-        internal int GetPointOffset(int aX, int aY)
-        {
-            int xBytePerPixel = (int)Mode.ColorDepth / 8;
-            int stride = (int)Mode.ColorDepth / 8;
-            int pitch = Mode.Columns * xBytePerPixel;
+        /// <param name="x">The X coordinate.</param>
+        /// <param name="y">The Y coordinate.</param>
+        public abstract int GetRawPointColor(int x, int y);
 
-            return (aX * stride) + (aY * pitch);
+        internal int GetPointOffset(int x, int y)
+        {
+            return (x * Stride) + (y * Pitch);
         }
 
         /// <summary>
-        /// Draw array of colors.
+        /// Draws an array of pixels to the canvas, starting at the given coordinates,
+        /// using the given width.
         /// </summary>
-        /// <param name="colors">Colors array.</param>
-        /// <param name="point">Starting point.</param>
-        /// <param name="width">Width.</param>
-        /// <param name="height">unused.</param>
-        /// <exception cref="ArgumentOutOfRangeException">Thrown if coordinates are invalid, or width is less than 0.</exception>
-        /// <exception cref="NotImplementedException">Thrown if color depth is not supported.</exception>
-        public virtual void DrawArray(Color[] colors, Point point, int width, int height)
+        /// <param name="colors">The pixels to draw.</param>
+        /// <param name="x">The X coordinate.</param>
+        /// <param name="y">The Y coordinate.</param>
+        /// <param name="width">The width of the drawn bitmap.</param>
+        /// <param name="height">This parameter is unused.</param>
+        public virtual void DrawArray(Color[] colors, int x, int y, int width, int height)
         {
-            DrawArray(colors, point.X, point.Y, width, height);
+            for (int X = 0; X < width; X++)
+            {
+                for (int Y = 0; Y < height; Y++)
+                {
+                    DrawPoint(colors[Y * width + X], x + X, y + Y);
+                }
+            }
         }
 
         /// <summary>
-        /// Draw array of colors.
+        /// Draws an array of pixels to the canvas, starting at the given coordinates,
+        /// using the given width.
         /// </summary>
-        /// <param name="colors">Colors array.</param>
-        /// <param name="x">X coordinate.</param>
-        /// <param name="y">Y coordinate.</param>
-        /// <param name="width">Width.</param>
-        /// <param name="height">unused.</param>
-        /// <exception cref="ArgumentOutOfRangeException">Thrown if coordinates are invalid, or width is less than 0.</exception>
-        /// <exception cref="NotImplementedException">Thrown if color depth is not supported.</exception>
-        public abstract void DrawArray(Color[] colors, int x, int y, int width, int height);
+        /// <param name="colors">The pixels to draw.</param>
+        /// <param name="x">The X coordinate.</param>
+        /// <param name="y">The Y coordinate.</param>
+        /// <param name="width">The width of the drawn bitmap.</param>
+        /// <param name="height">The height of the drawn bitmap.</param>
+        public virtual void DrawArray(int[] colors, int x, int y, int width, int height)
+        {
+            for (int X = 0; X < width; X++)
+            {
+                for (int Y = 0; Y < height; Y++)
+                {
+                    DrawPoint(colors[Y * width + X], x + X, y + Y);
+                }
+            }
+        }
 
         /// <summary>
-        /// Draw horizontal line.
+        /// Draws an array of pixels to the canvas, starting at the given coordinates,
+        /// using the given width.
         /// </summary>
-        /// <param name="pen">Pen to draw with.</param>
-        /// <param name="dx">Line lenght.</param>
-        /// <param name="x1">Staring point X coordinate.</param>
-        /// <param name="y1">Staring point Y coordinate.</param>
-        /// <exception cref="Exception">Thrown on memory access violation.</exception>
-        internal void DrawHorizontalLine(Pen pen, int dx, int x1, int y1)
+        /// <param name="colors">The pixels to draw.</param>
+        /// <param name="x">The X coordinate.</param>
+        /// <param name="y">The Y coordinate.</param>
+        /// <param name="width">The width of the drawn bitmap.</param>
+        /// <param name="height">The height of the drawn bitmap.</param>
+        /// <param name="startIndex">int[] colors tarting position</param>
+        public virtual void DrawArray(int[] colors, int x, int y, int width, int height, int startIndex)
+        {
+            for (int X = 0; X < width; X++)
+            {
+                for (int Y = 0; Y < height; Y++)
+                {
+                    DrawPoint(colors[Y * width + X + startIndex], x + X, y + Y);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Draws a horizontal line.
+        /// </summary>
+        /// <param name="color">The color to draw with.</param>
+        /// <param name="dx">The length of the line.</param>
+        /// <param name="x1">The starting point X coordinate.</param>
+        /// <param name="y1">The starting point Y coordinate.</param>
+        internal void DrawHorizontalLine(Color color, int dx, int x1, int y1)
         {
             int i;
 
             for (i = 0; i < dx; i++)
             {
-                DrawPoint(pen, x1 + i, y1);
+                DrawPoint(color, x1 + i, y1);
             }
         }
 
         /// <summary>
-        /// Draw vertical line.
+        /// Draw a vertical line.
         /// </summary>
-        /// <param name="pen">Pen to draw with.</param>
-        /// <param name="dy">Line lenght.</param>
-        /// <param name="x1">Staring point X coordinate.</param>
-        /// <param name="y1">Staring point Y coordinate.</param>
-        /// <exception cref="Exception">Thrown on memory access violation.</exception>
-        internal void DrawVerticalLine(Pen pen, int dy, int x1, int y1)
+        /// <param name="color">The color to draw with.</param>
+        /// <param name="dy">The line of the line.</param>
+        /// <param name="x1">The starting point X coordinate.</param>
+        /// <param name="y1">The starting point Y coordinate.</param>
+        internal void DrawVerticalLine(Color color, int dy, int x1, int y1)
         {
             int i;
 
             for (i = 0; i < dy; i++)
             {
-                DrawPoint(pen, x1, y1 + i);
+                DrawPoint(color, x1, y1 + i);
             }
         }
 
@@ -216,29 +246,27 @@ namespace Cosmos.System.Graphics
          * See http://www.brackeen.com/vga/shapes.html#4 for more informations.
          */
         /// <summary>
-        /// Draw diagonal line.
+        /// Draws a diagonal line.
         /// </summary>
-        /// <param name="pen">Pen to draw with.</param>
-        /// <param name="dx">Line lenght on X axis.</param>
-        /// <param name="dy">Line lenght on Y axis.</param>
-        /// <param name="x1">Staring point X coordinate.</param>
-        /// <param name="y1">Staring point Y coordinate.</param>
-        /// <exception cref="OverflowException">Thrown if dx or dy equal to Int32.MinValue.</exception>
-        /// <exception cref="Exception">Thrown on memory access violation.</exception>
-        internal void DrawDiagonalLine(Pen pen, int dx, int dy, int x1, int y1)
+        /// <param name="color">The color to draw with.</param>
+        /// <param name="dx">The line length on the X axis.</param>
+        /// <param name="dy">The line length on the Y axis.</param>
+        /// <param name="x1">The starting point X coordinate.</param>
+        /// <param name="y1">The starting point Y coordinate.</param>
+        internal void DrawDiagonalLine(Color color, int dx, int dy, int x1, int y1)
         {
-            int i, sdx, sdy, dxabs, dyabs, x, y, px, py;
+            int i;
 
-            dxabs = Math.Abs(dx);
-            dyabs = Math.Abs(dy);
-            sdx = Math.Sign(dx);
-            sdy = Math.Sign(dy);
-            x = dyabs >> 1;
-            y = dxabs >> 1;
-            px = x1;
-            py = y1;
+            var dxabs = Math.Abs(dx);
+            var dyabs = Math.Abs(dy);
+            var sdx = Math.Sign(dx);
+            var sdy = Math.Sign(dy);
+            var x = dyabs >> 1;
+            var y = dxabs >> 1;
+            var px = x1;
+            var py = y1;
 
-            if (dxabs >= dyabs) /* the line is more horizontal than vertical */
+            if (dxabs >= dyabs) // the line is more horizontal than vertical
             {
                 for (i = 0; i < dxabs; i++)
                 {
@@ -249,10 +277,10 @@ namespace Cosmos.System.Graphics
                         py += sdy;
                     }
                     px += sdx;
-                    DrawPoint(pen, px, py);
+                    DrawPoint(color, px, py);
                 }
             }
-            else /* the line is more vertical than horizontal */
+            else // the line is more vertical than horizontal
             {
                 for (i = 0; i < dyabs; i++)
                 {
@@ -263,168 +291,95 @@ namespace Cosmos.System.Graphics
                         px += sdx;
                     }
                     py += sdy;
-                    DrawPoint(pen, px, py);
+                    DrawPoint(color, px, py);
                 }
             }
         }
 
         /// <summary>
-        /// Draw line.
+        /// Draws a line between the given points.
         /// </summary>
-        /// <param name="pen">Pen to draw with.</param>
-        /// <param name="x1">Staring point X coordinate.</param>
-        /// <param name="y1">Staring point Y coordinate.</param>
-        /// <param name="x2">End point X coordinate.</param>
-        /// <param name="y2">End point Y coordinate.</param>
-        /// <exception cref="ArgumentOutOfRangeException">
-        /// <list type="bullet">
-        /// <item>Thrown if pen is null.</item>
-        /// <item>Coordinates invalid.</item>
-        /// </list>
-        /// </exception>
-        /// <exception cref="Exception">Thrown on memory access violation.</exception>
-        /// <exception cref="OverflowException">Thrown if x1-x2 or y1-y2 equal to Int32.MinValue.</exception>
-        public virtual void DrawLine(Pen pen, int x1, int y1, int x2, int y2)
+        /// <param name="color">The color to draw the line with.</param>
+        /// <param name="x1">The starting point X coordinate.</param>
+        /// <param name="y1">The starting point Y coordinate.</param>
+        /// <param name="x2">The end point X coordinate.</param>
+        /// <param name="y2">The end point Y coordinate.</param>
+        public virtual void DrawLine(Color color, int x1, int y1, int x2, int y2)
         {
-            if (pen == null)
-            {
-                throw new ArgumentOutOfRangeException(nameof(pen));
-            }
-
-            // trim the given line to fit inside the canvas boundries
+            // Trim the given line to fit inside the canvas boundaries
             TrimLine(ref x1, ref y1, ref x2, ref y2);
 
-            int dx, dy;
+            var dx = x2 - x1; // The horizontal distance of the line
+            var dy = y2 - y1; // The vertical distance of the line
 
-            dx = x2 - x1;      /* the horizontal distance of the line */
-            dy = y2 - y1;      /* the vertical distance of the line */
-
-            if (dy == 0) /* The line is horizontal */
+            if (dy == 0) // The line is horizontal
             {
-                DrawHorizontalLine(pen, dx, x1, y1);
+                DrawHorizontalLine(color, dx, x1, y1);
                 return;
             }
 
-            if (dx == 0) /* the line is vertical */
+            if (dx == 0) // The line is vertical
             {
-                DrawVerticalLine(pen, dy, x1, y1);
+                DrawVerticalLine(color, dy, x1, y1);
                 return;
             }
 
-            /* the line is neither horizontal neither vertical, is diagonal then! */
-            DrawDiagonalLine(pen, dx, dy, x1, y1);
-        }
-
-        /// <summary>
-        /// Draw line.
-        /// </summary>
-        /// <param name="pen">Pen to draw with.</param>
-        /// <param name="p1">Staring point.</param>
-        /// <param name="p2">End point.</param>
-        /// <exception cref="ArgumentOutOfRangeException">
-        /// <list type="bullet">
-        /// <item>Thrown if pen is null.</item>
-        /// <item>Coordinates invalid.</item>
-        /// </list>
-        /// </exception>
-        /// <exception cref="Exception">Thrown on memory access violation.</exception>
-        /// <exception cref="OverflowException">Thrown if x1-x2 or y1-y2 equal to Int32.MinValue.</exception>
-        public void DrawLine(Pen pen, Point p1, Point p2)
-        {
-            DrawLine(pen, p1.X, p1.Y, p2.X, p2.Y);
-        }
-
-        /// <summary>
-        /// Draw line.
-        /// Not implemented.
-        /// </summary>
-        /// <param name="pen">Pen to draw with.</param>
-        /// <param name="x1">Staring point X coordinate.</param>
-        /// <param name="y1">Staring point Y coordinate.</param>
-        /// <param name="x2">End point X coordinate.</param>
-        /// <param name="y2">End point Y coordinate.</param>
-        /// <exception cref="NotImplementedException">Thrown always.</exception>
-        public void DrawLine(Pen pen, float x1, float y1, float x2, float y2)
-        {
-            throw new NotImplementedException();
+            // The line is neither horizontal neither vertical - it's diagonal.
+            DrawDiagonalLine(color, dx, dy, x1, y1);
         }
 
         //https://en.wikipedia.org/wiki/Midpoint_circle_algorithm
         /// <summary>
-        /// Draw Circle.
+        /// Draws a circle at the given coordinates with the given radius.
         /// </summary>
-        /// <param name="pen">Pen to draw with.</param>
-        /// <param name="x_center">X center coordinate.</param>
-        /// <param name="y_center">Y center coordinate.</param>
-        /// <param name="radius">Radius.</param>
-        /// <exception cref="ArgumentNullException">Thrown if pen is null.</exception>
-        /// <exception cref="ArgumentOutOfRangeException">Thrown if coorinates invalid.</exception>
-        /// <exception cref="Exception">Thrown on memory access violation.</exception>
-        public virtual void DrawCircle(Pen pen, int x_center, int y_center, int radius)
+        /// <param name="color">The color to draw with.</param>
+        /// <param name="xCenter">The X center coordinate.</param>
+        /// <param name="yCenter">The Y center coordinate.</param>
+        /// <param name="radius">The radius of the circle to draw.</param>
+        public virtual void DrawCircle(Color color, int xCenter, int yCenter, int radius)
         {
-            if (pen == null)
-            {
-                throw new ArgumentNullException(nameof(pen));
-            }
-            ThrowIfCoordNotValid(x_center + radius, y_center);
-            ThrowIfCoordNotValid(x_center - radius, y_center);
-            ThrowIfCoordNotValid(x_center, y_center + radius);
-            ThrowIfCoordNotValid(x_center, y_center - radius);
+            ThrowIfCoordNotValid(xCenter + radius, yCenter);
+            ThrowIfCoordNotValid(xCenter - radius, yCenter);
+            ThrowIfCoordNotValid(xCenter, yCenter + radius);
+            ThrowIfCoordNotValid(xCenter, yCenter - radius);
             int x = radius;
             int y = 0;
             int e = 0;
 
             while (x >= y)
             {
-                DrawPoint(pen, x_center + x, y_center + y);
-                DrawPoint(pen, x_center + y, y_center + x);
-                DrawPoint(pen, x_center - y, y_center + x);
-                DrawPoint(pen, x_center - x, y_center + y);
-                DrawPoint(pen, x_center - x, y_center - y);
-                DrawPoint(pen, x_center - y, y_center - x);
-                DrawPoint(pen, x_center + y, y_center - x);
-                DrawPoint(pen, x_center + x, y_center - y);
+                DrawPoint(color, xCenter + x, yCenter + y);
+                DrawPoint(color, xCenter + y, yCenter + x);
+                DrawPoint(color, xCenter - y, yCenter + x);
+                DrawPoint(color, xCenter - x, yCenter + y);
+                DrawPoint(color, xCenter - x, yCenter - y);
+                DrawPoint(color, xCenter - y, yCenter - x);
+                DrawPoint(color, xCenter + y, yCenter - x);
+                DrawPoint(color, xCenter + x, yCenter - y);
 
                 y++;
                 if (e <= 0)
                 {
-                    e += 2 * y + 1;
+                    e += (2 * y) + 1;
                 }
                 if (e > 0)
                 {
                     x--;
-                    e -= 2 * x + 1;
+                    e -= (2 * x) + 1;
                 }
             }
         }
 
         /// <summary>
-        /// Draw Circle.
+        /// Draws a filled circle at the given coordinates with the given radius.
         /// </summary>
-        /// <param name="pen">Pen to draw with.</param>
-        /// <param name="point">center point.</param>
-        /// <param name="radius">Radius.</param>
-        /// <exception cref="ArgumentNullException">Thrown if pen is null.</exception>
-        /// <exception cref="ArgumentOutOfRangeException">Thrown if coorinates invalid.</exception>
-        /// <exception cref="Exception">Thrown on memory access violation.</exception>
-        public virtual void DrawCircle(Pen pen, Point point, int radius)
+        /// <param name="color">The color to draw with.</param>
+        /// <param name="x0">The X center coordinate.</param>
+        /// <param name="y0">The Y center coordinate.</param>
+        /// <param name="radius">The radius of the circle to draw.</param>
+        /// <param name="preventOffBoundPixels">Prevents drawing outside the bounds of the canvas.</param>
+        public virtual void DrawFilledCircle(Color color, int x0, int y0, int radius)
         {
-            DrawCircle(pen, point.X, point.Y, radius);
-        }
-
-        /// <summary>
-        /// Draw Filled Circle.
-        /// </summary>
-        /// <param name="pen">Pen to draw with.</param>
-        /// <param name="x_center">X center coordinate.</param>
-        /// <param name="y_center">Y center coordinate.</param>
-        /// <param name="radius">Radius.</param>
-        /// <exception cref="ArgumentNullException">Thrown if pen is null.</exception>
-        /// <exception cref="ArgumentOutOfRangeException">Thrown if coorinates invalid.</exception>
-        /// <exception cref="Exception">Thrown on memory access violation.</exception>
-        public virtual void DrawFilledCircle(Pen pen, int x0, int y0, int radius)
-        {
-
             int x = radius;
             int y = 0;
             int xChange = 1 - (radius << 1);
@@ -436,113 +391,60 @@ namespace Cosmos.System.Graphics
                 for (int i = x0 - x; i <= x0 + x; i++)
                 {
 
-                    DrawPoint(pen, i, y0 + y);
-                    DrawPoint(pen, i, y0 - y);
+                    DrawPoint(color, i, y0 + y);
+                    DrawPoint(color, i, y0 - y);
                 }
                 for (int i = x0 - y; i <= x0 + y; i++)
                 {
-                    DrawPoint(pen, i, y0 + x);
-                    DrawPoint(pen, i, y0 - x);
+                    DrawPoint(color, i, y0 + x);
+                    DrawPoint(color, i, y0 - x);
                 }
 
                 y++;
                 radiusError += yChange;
                 yChange += 2;
-                if (((radiusError << 1) + xChange) > 0)
+                if ((radiusError << 1) + xChange > 0)
                 {
                     x--;
                     radiusError += xChange;
                     xChange += 2;
                 }
             }
-
-            /*
-            for (int y = -radius; y <= radius; y++)
-                for (int x = -radius; x <= radius; x++)
-                    if (x * x + y * y <= radius * radius)
-                        (origin.x + x, origin.y + y);
-
-
-            if (pen == null)
-                throw new ArgumentNullException(nameof(pen));
-            ThrowIfCoordNotValid(x_center + radius, y_center);
-            ThrowIfCoordNotValid(x_center - radius, y_center);
-            ThrowIfCoordNotValid(x_center, y_center + radius);
-            ThrowIfCoordNotValid(x_center, y_center - radius);
-            int x = radius;
-            int y = 0;
-            int e = 0;
-
-            while (x >= y)
-            {
-                DrawLine(pen, x_center - x, y_center + y, x_center + x, y_center + y);
-                y++;
-                if (e <= 0)
-                {
-                    e += 2 * y + 1;
-                }
-                if (e > 0)
-                {
-                    x--;
-                    e -= 2 * x + 1;
-                }
-            }*/
-        }
-
-        /// <summary>
-        /// Draw Filled Circle.
-        /// </summary>
-        /// <param name="pen">Pen to draw with.</param>
-        /// <param name="point">center point.</param>
-        /// <param name="radius">Radius.</param>
-        /// <exception cref="ArgumentNullException">Thrown if pen is null.</exception>
-        /// <exception cref="ArgumentOutOfRangeException">Thrown if coorinates invalid.</exception>
-        /// <exception cref="Exception">Thrown on memory access violation.</exception>
-        public virtual void DrawFilledCircle(Pen pen, Point point, int radius)
-        {
-            DrawFilledCircle(pen, point.X, point.Y, radius);
         }
 
         //http://members.chello.at/~easyfilter/bresenham.html
         /// <summary>
-        /// Draw ellipse.
+        /// Draws an ellipse.
         /// </summary>
-        /// <param name="pen">Pen to draw with.</param>
-        /// <param name="x_center">X center coordinate.</param>
-        /// <param name="y_center">Y center coordinate.</param>
-        /// <param name="x_radius">X radius.</param>
-        /// <param name="y_radius">Y radius.</param>
-        /// <exception cref="ArgumentNullException">Thrown if pen is null.</exception>
-        /// <exception cref="ArgumentOutOfRangeException">Thrown if coorinates invalid.</exception>
-        /// <exception cref="Exception">Thrown on memory access violation.</exception>
-        public virtual void DrawEllipse(Pen pen, int x_center, int y_center, int x_radius, int y_radius)
+        /// <param name="color">The color to draw with.</param>
+        /// <param name="xCenter">The X center coordinate.</param>
+        /// <param name="yCenter">The Y center coordinate.</param>
+        /// <param name="xR">The X radius.</param>
+        /// <param name="yR">The Y radius.</param>
+        public virtual void DrawEllipse(Color color, int xCenter, int yCenter, int xR, int yR)
         {
-            if (pen == null)
-            {
-                throw new ArgumentNullException(nameof(pen));
-            }
-            ThrowIfCoordNotValid(x_center + x_radius, y_center);
-            ThrowIfCoordNotValid(x_center - x_radius, y_center);
-            ThrowIfCoordNotValid(x_center, y_center + y_radius);
-            ThrowIfCoordNotValid(x_center, y_center - y_radius);
-            int a = 2 * x_radius;
-            int b = 2 * y_radius;
+            ThrowIfCoordNotValid(xCenter + xR, yCenter);
+            ThrowIfCoordNotValid(xCenter - xR, yCenter);
+            ThrowIfCoordNotValid(xCenter, yCenter + yR);
+            ThrowIfCoordNotValid(xCenter, yCenter - yR);
+            int a = 2 * xR;
+            int b = 2 * yR;
             int b1 = b & 1;
             int dx = 4 * (1 - a) * b * b;
             int dy = 4 * (b1 + 1) * a * a;
-            int err = dx + dy + b1 * a * a;
+            int err = dx + dy + (b1 * a * a);
             int e2;
             int y = 0;
-            int x = x_radius;
+            int x = xR;
             a *= 8 * a;
             b1 = 8 * b * b;
 
             while (x >= 0)
             {
-                DrawPoint(pen, x_center + x, y_center + y);
-                DrawPoint(pen, x_center - x, y_center + y);
-                DrawPoint(pen, x_center - x, y_center - y);
-                DrawPoint(pen, x_center + x, y_center - y);
+                DrawPoint(color, xCenter + x, yCenter + y);
+                DrawPoint(color, xCenter - x, yCenter + y);
+                DrawPoint(color, xCenter - x, yCenter - y);
+                DrawPoint(color, xCenter + x, yCenter - y);
                 e2 = 2 * err;
                 if (e2 <= dy) { y++; err += dy += a; }
                 if (e2 >= dx || 2 * err > dy) { x--; err += dx += b1; }
@@ -550,536 +452,434 @@ namespace Cosmos.System.Graphics
         }
 
         /// <summary>
-        /// Draw ellipse.
+        /// Draws a filled ellipse.
         /// </summary>
-        /// <param name="pen">Pen to draw with.</param>
-        /// <param name="point">Center point.</param>
-        /// <param name="x_radius">X radius.</param>
-        /// <param name="y_radius">Y radius.</param>
-        /// <exception cref="ArgumentNullException">Thrown if pen is null.</exception>
-        /// <exception cref="ArgumentOutOfRangeException">Thrown if coorinates invalid.</exception>
-        /// <exception cref="Exception">Thrown on memory access violation.</exception>
-        public virtual void DrawEllipse(Pen pen, Point point, int x_radius, int y_radius)
+        /// <param name="color">The color to draw with.</param>
+        /// <param name="xCenter">The X center coordinate.</param>
+        /// <param name="yCenter">The Y center coordinate.</param>
+        /// <param name="xR">The X radius.</param>
+        /// <param name="yR">The Y radius.</param>
+        public virtual void DrawFilledEllipse(Color color, int xCenter, int yCenter, int yR, int xR)
         {
-            DrawEllipse(pen, point.X, point.Y, x_radius, y_radius);
-        }
-
-        /// <summary>
-        /// Draw Filled Ellipse.
-        /// </summary>
-        /// <param name="pen">Pen to draw with.</param>
-        /// <param name="point">Center point.</param>
-        /// <param name="height">Height.</param>
-        /// <param name="width">Width.</param>
-        /// <exception cref="ArgumentNullException">Thrown if pen is null.</exception>
-        /// <exception cref="ArgumentOutOfRangeException">Thrown if coorinates invalid.</exception>
-        /// <exception cref="Exception">Thrown on memory access violation.</exception>
-        public virtual void DrawFilledEllipse(Pen pen, Point point, int height, int width)
-        {
-            for (int y = -height; y <= height; y++)
+            for (int y = -yR; y <= yR; y++)
             {
-                for (int x = -width; x <= width; x++)
+                for (int x = -xR; x <= xR; x++)
                 {
-                    if (x * x * height * height + y * y * width * width <= height * height * width * width)
+                    if ((x * x * yR * yR) + (y * y * xR * xR) <= yR * yR * xR * xR)
                     {
-                        DrawPoint(pen, point.X + x, point.Y + y);
+                        DrawPoint(color, xCenter + x, yCenter + y);
                     }
                 }
             }
         }
 
         /// <summary>
-        /// Draw Filled Ellipse.
-        /// </summary>
-        /// <param name="pen">Pen to draw with.</param>
-        /// <param name="x">X Position.</param>
-        /// <param name="y">Y Position.</param>
-        /// <param name="height">Height.</param>
-        /// <param name="width">Width.</param>
-        /// <exception cref="ArgumentNullException">Thrown if pen is null.</exception>
-        /// <exception cref="ArgumentOutOfRangeException">Thrown if coorinates invalid.</exception>
-        /// <exception cref="Exception">Thrown on memory access violation.</exception>
-        public virtual void DrawFilledEllipse(Pen pen, int x, int y, int height, int width)
+		/// Draws an arc.
+		/// </summary>
+		/// <param name="x">The starting X coordinate.</param>
+		/// <param name="y">The ending X coordinate.</param>
+		/// <param name="width">The width of the arc.</param>
+		/// <param name="height">The height of the arc.</param>
+		/// <param name="color">The color of the arc.</param>
+		/// <param name="startAngle">The starting angle of the arc, in degrees.</param>
+		/// <param name="endAngle">The ending angle of the arc, in degrees.</param>
+        public virtual void DrawArc(int x, int y, int width, int height, Color color, int startAngle = 0, int endAngle = 360)
         {
-            DrawFilledEllipse(pen, new Point(x, y), height, width);
+            if (width == 0 || height == 0)
+            {
+                return;
+            }
+
+            for (double angle = startAngle; angle < endAngle; angle += 0.5)
+            {
+                double angleRadians = Math.PI * angle / 180;
+                int IX = (int)(width * Math.Cos(angleRadians));
+                int IY = (int)(height * Math.Sin(angleRadians));
+                DrawPoint(color, x + IX, y + IY);
+            }
         }
 
         /// <summary>
-        /// Draw polygon.
+        /// Draws a polygon.
         /// </summary>
-        /// <param name="pen">Pen to draw with.</param>
-        /// <param name="points">Points array.</param>
-        /// <exception cref="ArgumentException">Thrown if point array is smaller then 3.</exception>
-        /// <exception cref="ArgumentNullException">Thrown if pen is null.</exception>
-        /// <exception cref="ArgumentOutOfRangeException">
-        /// <list type="bullet">
-        /// <item>Thrown if pen is null.</item>
-        /// <item>Coordinates invalid.</item>
-        /// </list>
-        /// </exception>
-        /// <exception cref="Exception">Thrown on memory access violation.</exception>
-        /// <exception cref="OverflowException">Thrown if lines length are invalid.</exception>
-        public virtual void DrawPolygon(Pen pen, params Point[] points)
+        /// <param name="color">The color to draw with.</param>
+        /// <param name="points">The vertices of the polygon.</param>
+        public virtual void DrawPolygon(Color color, params Point[] points)
         {
+            // Using an array of points here is better than using something like a Dictionary of ints.
             if (points.Length < 3)
             {
                 throw new ArgumentException("A polygon requires more than 3 points.");
             }
-            if (pen == null)
-            {
-                throw new ArgumentNullException(nameof(pen));
-            }
+
             for (int i = 0; i < points.Length - 1; i++)
             {
-                DrawLine(pen, points[i], points[i + 1]);
+                var pointA = points[i];
+                var pointB = points[i + 1];
+                DrawLine(color, pointA.X, pointA.Y, pointB.X, pointB.Y);
             }
-            DrawLine(pen, points[0], points[points.Length - 1]);
+
+            var firstPoint = points[0];
+            var lastPoint = points[^1];
+            DrawLine(color, firstPoint.X, firstPoint.Y, lastPoint.X, lastPoint.Y);
         }
 
         /// <summary>
-        /// Draw square.
+        /// Draws a square.
         /// </summary>
-        /// <param name="pen">Pen to draw with.</param>
-        /// <param name="point">Starting point.</param>
-        /// <param name="size">size.</param>
-        /// <exception cref="ArgumentNullException">Thrown if pen is null.</exception>
-        /// <exception cref="ArgumentOutOfRangeException">
-        /// <list type="bullet">
-        /// <item>Thrown if pen is null.</item>
-        /// <item>Coordinates invalid.</item>
-        /// </list>
-        /// </exception>
-        /// <exception cref="Exception">Thrown on memory access violation.</exception>
-        /// <exception cref="OverflowException">Thrown if lines length are invalid.</exception>
-        public virtual void DrawSquare(Pen pen, Point point, int size)
+        /// <param name="color">The color to draw with.</param>
+        /// <param name="x">The X coordinate.</param>
+        /// <param name="y">The Y coordinate.</param>
+        /// <param name="size">The size of the square.</param>
+        public virtual void DrawSquare(Color color, int x, int y, int size)
         {
-            DrawRectangle(pen, point.X, point.Y, size, size);
+            DrawRectangle(color, x, y, size, size);
         }
 
         /// <summary>
-        /// Draw square.
+        /// Draws a rectangle.
         /// </summary>
-        /// <param name="pen">Pen to draw with.</param>
-        /// <param name="x">X coordinate.</param>
-        /// <param name="y">Y coordinate.</param>
-        /// <param name="size">size.</param>
-        /// <exception cref="ArgumentNullException">Thrown if pen is null.</exception>
-        /// <exception cref="ArgumentOutOfRangeException">
-        /// <list type="bullet">
-        /// <item>Thrown if pen is null.</item>
-        /// <item>Coordinates invalid.</item>
-        /// </list>
-        /// </exception>
-        /// <exception cref="Exception">Thrown on memory access violation.</exception>
-        /// <exception cref="OverflowException">Thrown if lines length are invalid.</exception>
-        public virtual void DrawSquare(Pen pen, int x, int y, int size)
+        /// <param name="color">The color to draw with.</param>
+        /// <param name="x">The X coordinate.</param>
+        /// <param name="y">The Y coordinate.</param>
+        /// <param name="width">The width of the rectangle.</param>
+        /// <param name="height">The height of the rectangle.</param>
+        public virtual void DrawRectangle(Color color, int x, int y, int width, int height)
         {
-            DrawRectangle(pen, x, y, size, size);
+            // Draw top edge from (x, y) to (x + width, y)
+            DrawLine(color, x, y, x + width, y);
+
+            // Draw left edge from (x, y) to (x, y + height)
+            DrawLine(color, x, y, x, y + height);
+
+            // Draw bottom edge from (x, y + height) to (x + width, y + height)
+            DrawLine(color, x, y + height, x + width, y + height);
+
+            // Draw right edge from (x + width, y) to (x + width, y + height)
+            DrawLine(color, x + width, y, x + width, y + height);
         }
 
         /// <summary>
-        /// Draw rectangle.
+        /// Draws a filled rectangle.
         /// </summary>
-        /// <param name="pen">Pen to draw with.</param>
-        /// <param name="point">Staring point.</param>
-        /// <param name="width">Width.</param>
-        /// <param name="height">Height.</param>
-        /// <exception cref="ArgumentNullException">Thrown if pen is null.</exception>
-        /// <exception cref="ArgumentOutOfRangeException">
-        /// <list type="bullet">
-        /// <item>Thrown if pen is null.</item>
-        /// <item>Coordinates invalid.</item>
-        /// </list>
-        /// </exception>
-        /// <exception cref="Exception">Thrown on memory access violation.</exception>
-        /// <exception cref="OverflowException">Thrown if lines length are invalid.</exception>
-        public virtual void DrawRectangle(Pen pen, Point point, int width, int height)
-        {
-            DrawRectangle(pen, point.X, point.Y, width, height);
-        }
-
-        /// <summary>
-        /// Draw rectangle.
-        /// </summary>
-        /// <param name="pen">Pen to draw with.</param>
-        /// <param name="x">X coordinate.</param>
-        /// <param name="y">Y coordinate.</param>
-        /// <param name="width">Width.</param>
-        /// <param name="height">Height.</param>
-        /// <exception cref="ArgumentNullException">Thrown if pen is null.</exception>
-        /// <exception cref="ArgumentOutOfRangeException">
-        /// <list type="bullet">
-        /// <item>Thrown if pen is null.</item>
-        /// <item>Coordinates invalid.</item>
-        /// </list>
-        /// </exception>
-        /// <exception cref="Exception">Thrown on memory access violation.</exception>
-        /// <exception cref="OverflowException">Thrown if lines length are invalid.</exception>
-        public virtual void DrawRectangle(Pen pen, int x, int y, int width, int height)
-        {
-            /*
-             * we must draw four lines connecting any vertex of our rectangle to do this we first obtain the position of these
-             * vertex (we call these vertexes A, B, C, D as for geometric convention)
-             */
-            if (pen == null)
-            {
-                throw new ArgumentNullException(nameof(pen));
-            }
-            /* The check of the validity of x and y are done in DrawLine() */
-
-            /* The vertex A is where x,y are */
-            int xa = x;
-            int ya = y;
-
-            /* The vertex B has the same y coordinate of A but x is moved of width pixels */
-            int xb = x + width;
-            int yb = y;
-
-            /* The vertex C has the same x coordiate of A but this time is y that is moved of height pixels */
-            int xc = x;
-            int yc = y + height;
-
-            /* The Vertex D has x moved of width pixels and y moved of height pixels */
-            int xd = x + width;
-            int yd = y + height;
-
-            /* Draw a line betwen A and B */
-            DrawLine(pen, xa, ya, xb, yb);
-
-            /* Draw a line between A and C */
-            DrawLine(pen, xa, ya, xc, yc);
-
-            /* Draw a line between B and D */
-            DrawLine(pen, xb, yb, xd, yd);
-
-            /* Draw a line between C and D */
-            DrawLine(pen, xc, yc, xd, yd);
-        }
-
-        /// <summary>
-        /// Draw filled rectangle.
-        /// </summary>
-        /// <param name="pen">Pen to draw with.</param>
-        /// <param name="point">Starting point.</param>
-        /// <param name="width">Width.</param>
-        /// <param name="height">Height.</param>
-        /// <exception cref="ArgumentOutOfRangeException">
-        /// <list type="bullet">
-        /// <item>Thrown if pen is null.</item>
-        /// <item>Coordinates invalid.</item>
-        /// </list>
-        /// </exception>
-        /// <exception cref="Exception">Thrown on memory access violation.</exception>
-        /// <exception cref="OverflowException">Thrown if lines length are invalid.</exception>
-        public virtual void DrawFilledRectangle(Pen pen, Point point, int width, int height)
-        {
-            DrawFilledRectangle(pen, point.X, point.Y, width, height);
-        }
-
-        /// <summary>
-        /// Draw filled rectangle.
-        /// </summary>
-        /// <param name="pen">Pen to draw with.</param>
-        /// <param name="x_start">Starting point X coordinate.</param>
-        /// <param name="y_start">Starting point Y coordinate.</param>
-        /// <param name="width">Width.</param>
-        /// <param name="height">Height.</param>
-        /// <exception cref="ArgumentOutOfRangeException">
-        /// <list type="bullet">
-        /// <item>Thrown if pen is null.</item>
-        /// <item>Coordinates invalid.</item>
-        /// </list>
-        /// </exception>
-        /// <exception cref="Exception">Thrown on memory access violation.</exception>
-        /// <exception cref="OverflowException">Thrown if lines length are invalid.</exception>
-        public virtual void DrawFilledRectangle(Pen pen, int x_start, int y_start, int width, int height)
+        /// <param name="color">The color to draw the rectangle with.</param>
+        /// <param name="xStart">The starting point X coordinate.</param>
+        /// <param name="yStart">The starting point Y coordinate.</param>
+        /// <param name="width">The width of the rectangle.</param>
+        /// <param name="height">The height of the rectangle.</param>
+        public virtual void DrawFilledRectangle(Color color, int xStart, int yStart, int width, int height, bool preventOffBoundPixels = true)
         {
             if (height == -1)
             {
                 height = width;
             }
-
-            for (int y = y_start; y < y_start + height; y++)
+            if (preventOffBoundPixels)
             {
-                DrawLine(pen, x_start, y, x_start + width - 1, y);
+                width = Math.Min(width, (int)Mode.Width - xStart);
+                height = Math.Min(height, (int)Mode.Height - yStart);
+            }
+            for (int y = yStart; y < yStart + height; y++)
+            {
+                DrawLine(color, xStart, y, xStart + width - 1, y);
             }
         }
 
         /// <summary>
-        /// Draw triangle.
+        /// Draws a triangle.
         /// </summary>
-        /// <param name="pen">Pen to draw with.</param>
-        /// <param name="point0">First point.</param>
-        /// <param name="point1">Second point.</param>
-        /// <param name="point2">Third point.</param>
-        /// <exception cref="ArgumentOutOfRangeException">
-        /// <list type="bullet">
-        /// <item>Thrown if pen is null.</item>
-        /// <item>Coordinates invalid.</item>
-        /// </list>
-        /// </exception>
-        /// <exception cref="Exception">Thrown on memory access violation.</exception>
-        /// <exception cref="OverflowException">Thrown if lines lengths are invalid.</exception>
-        public virtual void DrawTriangle(Pen pen, Point point0, Point point1, Point point2)
+        /// <param name="color">The color to draw with.</param>
+        /// <param name="v1x">The first points X coordinate.</param>
+        /// <param name="v1y">The first points Y coordinate.</param>
+        /// <param name="v2x">The second points X coordinate.</param>
+        /// <param name="v2y">The second points Y coordinate.</param>
+        /// <param name="v3x">The third points X coordinate.</param>
+        /// <param name="v3y">The third points Y coordinate.</param>
+        public virtual void DrawTriangle(Color color, int v1x, int v1y, int v2x, int v2y, int v3x, int v3y)
         {
-            DrawTriangle(pen, point0.X, point0.Y, point1.X, point1.Y, point2.X, point2.Y);
+            DrawLine(color, v1x, v1y, v2x, v2y);
+            DrawLine(color, v1x, v1y, v3x, v3y);
+            DrawLine(color, v2x, v2y, v3x, v3y);
         }
 
         /// <summary>
-        /// Draw triangle.
+        /// Draws the given image at the specified coordinates.
         /// </summary>
-        /// <param name="pen">Pen to draw with.</param>
-        /// <param name="v1x">First point X coordinate.</param>
-        /// <param name="v1y">First point Y coordinate.</param>
-        /// <param name="v2x">Second point X coordinate.</param>
-        /// <param name="v2y">Second point Y coordinate.</param>
-        /// <param name="v3x">Third point X coordinate.</param>
-        /// <param name="v3y">Third point Y coordinate.</param>
-        /// <exception cref="ArgumentOutOfRangeException">
-        /// <list type="bullet">
-        /// <item>Thrown if pen is null.</item>
-        /// <item>Coordinates invalid.</item>
-        /// </list>
-        /// </exception>
-        /// <exception cref="Exception">Thrown on memory access violation.</exception>
-        /// <exception cref="OverflowException">Thrown if lines lengths are invalid.</exception>
-        public virtual void DrawTriangle(Pen pen, int v1x, int v1y, int v2x, int v2y, int v3x, int v3y)
+        /// <param name="image">The image to draw.</param>
+        /// <param name="x">The origin X coordinate.</param>
+        /// <param name="y">The origin Y coordinate.</param>
+        /// <param name="preventOffBoundPixels">Prevents drawing outside the bounds of the canvas.</param>
+        public virtual void DrawImage(Image image, int x, int y, bool preventOffBoundPixels = true)
         {
-            DrawLine(pen, v1x, v1y, v2x, v2y);
-            DrawLine(pen, v1x, v1y, v3x, v3y);
-            DrawLine(pen, v2x, v2y, v3x, v3y);
-        }
-
-        /// <summary>
-        /// Draw rectangle.
-        /// Not implemented.
-        /// </summary>
-        /// <param name="pen">Pen to draw with.</param>
-        /// <param name="x_start">starting X coordinate.</param>
-        /// <param name="y_start">starting Y coordinate.</param>
-        /// <param name="width">Width.</param>
-        /// <param name="height">Height.</param>
-        /// <exception cref="NotImplementedException">Thrown always.</exception>
-        public virtual void DrawRectangle(Pen pen, float x_start, float y_start, float width, float height)
-        {
-            throw new NotImplementedException();
-        }
-
-        //Image and Font will be available in .NET Core 2.1
-        // dot net core does not have Image
-        //We are using a short term solution for bitmap
-        /// <summary>
-        /// Draw image.
-        /// </summary>
-        /// <param name="image">Image to draw.</param>
-        /// <param name="x">X coordinate.</param>
-        /// <param name="y">Y coordinate.</param>
-        /// <exception cref="Exception">Thrown on memory access violation.</exception>
-        /// <exception cref="ArgumentOutOfRangeException">Thrown on fatal error.</exception>
-        public virtual void DrawImage(Image image, int x, int y)
-        {
-            for (int _x = 0; _x < image.Width; _x++)
+            Color color;
+            if (preventOffBoundPixels)
             {
-                for (int _y = 0; _y < image.Height; _y++)
+                var maxWidth = Math.Min(image.Width, (int)Mode.Width - x);
+                var maxHeight = Math.Min(image.Height, (int)Mode.Height - y);
+                for (int xi = 0; xi < maxWidth; xi++)
                 {
-                    Global.mDebugger.SendInternal(image.rawData[_x + _y * image.Width]);
-                    DrawPoint(new Pen(Color.FromArgb(image.rawData[_x + _y * image.Width])), x + _x, y + _y);
-                }
-            }
-        }
-
-        private int[] scaleImage(Image image, int newWidth, int newHeight)
-        {
-            int[] pixels = image.rawData;
-            int w1 = (int)image.Width;
-            int h1 = (int)image.Height;
-            int[] temp = new int[newWidth * newHeight];
-            int x_ratio = (int)((w1 << 16) / newWidth) + 1;
-            int y_ratio = (int)((h1 << 16) / newHeight) + 1;
-            int x2, y2;
-            for (int i = 0; i < newHeight; i++)
-            {
-                for (int j = 0; j < newWidth; j++)
-                {
-                    x2 = ((j * x_ratio) >> 16);
-                    y2 = ((i * y_ratio) >> 16);
-                    temp[(i * newWidth) + j] = pixels[(y2 * w1) + x2];
-                }
-            }
-            return temp;
-        }
-        /// <summary>
-        /// Draw a Scaled Bitmap.
-        /// </summary>
-        /// <param name="image">Image to Scale.</param>
-        /// <param name="x">X coordinate.</param>
-        /// <param name="y">Y coordinate.</param>
-        /// <param name="w">Desired Width.</param>
-        /// <param name="h">Desired Height.</param>
-        public virtual void DrawImage(Image image, int x, int y, int w, int h)
-        {
-            int[] pixels = scaleImage(image, w, h);
-            for (int _x = 0; _x < w; _x++)
-            {
-                for (int _y = 0; _y < h; _y++)
-                {
-                    Global.mDebugger.SendInternal(pixels[_x + _y * w]);
-                    DrawPoint(new Pen(Color.FromArgb(pixels[_x + _y * w])), x + _x, y + _y);
-                }
-            }
-        }
-
-        /// <summary>
-        /// Draw image with alpha channel.
-        /// </summary>
-        /// <param name="image">Image to draw.</param>
-        /// <param name="x">X coordinate.</param>
-        /// <param name="y">Y coordinate.</param>
-        /// <exception cref="Exception">Thrown on memory access violation.</exception>
-        /// <exception cref="ArgumentOutOfRangeException">Thrown on fatal error.</exception>
-        public void DrawImageAlpha(Image image, int x, int y)
-        {
-            for (int _x = 0; _x < image.Width; _x++)
-            {
-                for (int _y = 0; _y < image.Height; _y++)
-                {
-                    Global.mDebugger.SendInternal(image.rawData[_x + _y * image.Width]);
-                    DrawPoint(new Pen(Color.FromArgb(image.rawData[_x + _y * image.Width])), x + _x, y + _y);
-                }
-            }
-        }
-
-        /// <summary>
-        /// Draw image.
-        /// </summary>
-        /// <param name="image">Image to draw.</param>
-        /// <param name="point">Point of the top left corner of the image.</param>
-        /// <exception cref="Exception">Thrown on memory access violation.</exception>
-        /// <exception cref="ArgumentOutOfRangeException">Thrown on fatal error.</exception>
-        public void DrawImage(Image image, Point point)
-        {
-            DrawImage(image, point.X, point.Y);
-        }
-
-        /// <summary>
-        /// Draw image with alpha channel.
-        /// </summary>
-        /// <param name="image">Image to draw.</param>
-        /// <param name="point">Point of the top left corner of the image.</param>
-        /// <exception cref="Exception">Thrown on memory access violation.</exception>
-        /// <exception cref="ArgumentOutOfRangeException">Thrown on fatal error.</exception>
-        public void DrawImageAlpha(Image image, Point point)
-        {
-            DrawImageAlpha(image, point.X, point.Y);
-        }
-
-        /// <summary>
-        /// Draw string.
-        /// </summary>
-        /// <param name="str">string to draw.</param>
-        /// <param name="aFont">Font used.</param>
-        /// <param name="pen">Color.</param>
-        /// <param name="point">Point of the top left corner of the string.</param>
-        public void DrawString(string str, Font aFont, Pen pen, Point point)
-        {
-            DrawString(str, aFont, pen, point.X, point.Y);
-        }
-
-        /// <summary>
-        /// Draw string.
-        /// </summary>
-        /// <param name="str">string to draw.</param>
-        /// <param name="aFont">Font used.</param>
-        /// <param name="pen">Color.</param>
-        /// <param name="x">X coordinate.</param>
-        /// <param name="y">Y coordinate.</param>
-        public virtual void DrawString(string str, Font aFont, Pen pen, int x, int y)
-        {
-            for (int i = 0; i < str.Length; i++)
-            {
-                DrawChar(str[i], aFont, pen, x, y);
-                x += aFont.Width;
-            }
-        }
-
-        /// <summary>
-        /// Draw string.
-        /// </summary>
-        /// <param name="str">char to draw.</param>
-        /// <param name="aFont">Font used.</param>
-        /// <param name="pen">Color.</param>
-        /// <param name="point">Point of the top left corner of the char.</param>
-        public void DrawChar(char c, Font aFont, Pen pen, Point point)
-        {
-            DrawChar(c, aFont, pen, point.X, point.Y);
-        }
-
-        /// <summary>
-        /// Draw char.
-        /// </summary>
-        /// <param name="str">char to draw.</param>
-        /// <param name="aFont">Font used.</param>
-        /// <param name="pen">Color.</param>
-        /// <param name="x">X coordinate.</param>
-        /// <param name="y">Y coordinate.</param>
-        public virtual void DrawChar(char c, Font aFont, Pen pen, int x, int y)
-        {
-            int p = aFont.Height * (byte)c;
-
-            for (int cy = 0; cy < aFont.Height; cy++)
-            {
-                for (byte cx = 0; cx < aFont.Width; cx++)
-                {
-                    if (aFont.ConvertByteToBitAddres(aFont.Data[p + cy], cx + 1))
+                    for (int yi = 0; yi < maxHeight; yi++)
                     {
-                        DrawPoint(pen, (ushort)((x) + (aFont.Width - cx)), (ushort)((y) + cy));
+                        color = Color.FromArgb(image.RawData[xi + (yi * image.Width)]);
+                        DrawPoint(color, x + xi, y + yi);
+                    }
+                }
+            }
+            else
+            {
+                for (int xi = 0; xi < image.Width; xi++)
+                {
+                    for (int yi = 0; yi < image.Height; yi++)
+                    {
+                        color = Color.FromArgb(image.RawData[xi + (yi * image.Width)]);
+                        DrawPoint(color, x + xi, y + yi);
                     }
                 }
             }
         }
 
         /// <summary>
-        /// Check if video mode is valid.
+        /// Creates a bitmap by copying a portion of your canvas from the specified coordinates and dimensions.
         /// </summary>
-        /// <param name="mode">Video mode.</param>
-        /// <returns>bool value.</returns>
+        /// <param name="x">The starting X coordinate of the region to copy.</param>
+        /// <param name="y">The starting Y coordinate of the region to copy.</param>
+        /// <param name="width">The width of the region to copy.</param>
+        /// <param name="height">The height of the region to copy.</param>
+        /// <returns>A new <see cref="Bitmap"/> containing the copied region.</returns>
+        public virtual Bitmap GetImage(int x, int y, int width, int height)
+        {
+            Bitmap bitmap = new Bitmap((uint)x, (uint)y, ColorDepth.ColorDepth32);
+
+            for (int posy = y, desty = 0; posy < y + y; posy++, desty++)
+            {
+                for (int posx = x, destx = 0; posx < x + x; posx++, destx++)
+                {
+                    bitmap.RawData[desty * x + destx] = GetRawPointColor(posx, posy);
+                }
+            }
+            return bitmap;
+        }
+
+        /// <summary>
+        /// Scales an image to the specified new width and height.
+        /// </summary>
+        /// <param name="image">The image to be scaled.</param>
+        /// <param name="newWidth">The width of the scaled image.</param>
+        /// <param name="newHeight">The height of the scaled image.</param>
+        /// <returns>An array of integers representing the scaled image's pixel data. (Raw bitmap data)</returns>
+        static int[] ScaleImage(Image image, int newWidth, int newHeight)
+        {
+            int[] pixels = image.RawData;
+            int w1 = (int)image.Width;
+            int h1 = (int)image.Height;
+            int[] temp = new int[newWidth * newHeight];
+            int xRatio = (int)((w1 << 16) / newWidth) + 1;
+            int yRatio = (int)((h1 << 16) / newHeight) + 1;
+            int x2, y2;
+            for (int i = 0; i < newHeight; i++)
+            {
+                for (int j = 0; j < newWidth; j++)
+                {
+                    x2 = (j * xRatio) >> 16;
+                    y2 = (i * yRatio) >> 16;
+                    temp[(i * newWidth) + j] = pixels[(y2 * w1) + x2];
+                }
+            }
+            return temp;
+        }
+
+        /// <summary>
+        /// Draws a bitmap, applying scaling to the given image.
+        /// </summary>
+        /// <param name="image">The image to draw.</param>
+        /// <param name="x">The X coordinate.</param>
+        /// <param name="y">The Y coordinate.</param>
+        /// <param name="w">The desired width to scale the image to before drawing.</param>
+        /// <param name="h">The desired height to scale the image to before drawing</param>
+        /// <param name="preventOffBoundPixels">Prevents drawing outside the bounds of the canvas.</param>
+        public virtual void DrawImage(Image image, int x, int y, int w, int h, bool preventOffBoundPixels = true)
+        {
+            Color color;
+
+            int[] pixels = ScaleImage(image, w, h);
+            if (preventOffBoundPixels)
+            {
+                var maxWidth = Math.Min(w, (int)Mode.Width - x);
+                var maxHeight = Math.Min(h, (int)Mode.Height - y);
+                for (int xi = 0; xi < maxWidth; xi++)
+                {
+                    for (int yi = 0; yi < maxHeight; yi++)
+                    {
+                        color = Color.FromArgb(pixels[xi + (yi * w)]);
+                        DrawPoint(color, x + xi, y + yi);
+                    }
+                }
+            }
+            else
+            {
+                for (int xi = 0; xi < w; xi++)
+                {
+                    for (int yi = 0; yi < h; yi++)
+                    {
+                        color = Color.FromArgb(pixels[xi + (yi * w)]);
+                        DrawPoint(color, x + xi, y + yi);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Draws the given image at the specified coordinates, cropping the image to fit within the maximum width and height.
+        /// </summary>
+        /// <param name="image">The image to draw.</param>
+        /// <param name="x">The X coordinate where the image will be drawn.</param>
+        /// <param name="y">The Y coordinate where the image will be drawn.</param>
+        /// <param name="maxWidth">The maximum width to display the image. If the image exceeds this width, it will be cropped.</param>
+        /// <param name="maxHeight">The maximum height to display the image. If the image exceeds this height, it will be cropped.</param>
+        /// <param name="preventOffBoundPixels">Prevents drawing outside the bounds of the canvas.</param>
+        public virtual void CroppedDrawImage(Image image, int x, int y, int maxWidth, int maxHeight, bool preventOffBoundPixels = true)
+        {
+            Color color;
+            int width = Math.Min((int)image.Width, maxWidth);  
+            int height = Math.Min((int)image.Height, maxHeight); 
+            int[] pixels = image.RawData;
+
+            for (int xi = 0; xi < width; xi++)
+            {
+                for (int yi = 0; yi < height; yi++)
+                {
+                    color = Color.FromArgb(pixels[xi + (yi * image.Width)]);
+                    DrawPoint(color, x + xi, y + yi);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Draws an image with alpha blending.
+        /// </summary>
+        /// <param name="image">The image to draw.</param>
+        /// <param name="x">The X coordinate.</param>
+        /// <param name="y">The Y coordinate.</param>
+        /// <param name="preventOffBoundPixels">Prevents drawing outside the bounds of the canvas.</param>
+        public void DrawImageAlpha(Image image, int x, int y, bool preventOffBoundPixels = true)
+        {
+            Color color;
+            if (preventOffBoundPixels)
+            {
+                var maxWidth = Math.Min(image.Width, (int)Mode.Width - x);
+                var maxHeight = Math.Min(image.Height, (int)Mode.Height - y);
+                for (int xi = 0; xi < maxWidth; xi++)
+                {
+                    for (int yi = 0; yi < maxHeight; yi++)
+                    {
+                        color = Color.FromArgb(image.RawData[xi + (yi * image.Width)]);
+                        DrawPoint(color, x + xi, y + yi);
+                    }
+                }
+            }
+            else
+            {
+                for (int xi = 0; xi < image.Width; xi++)
+                {
+                    for (int yi = 0; yi < image.Height; yi++)
+                    {
+                        color = Color.FromArgb(image.RawData[xi + (yi * image.Width)]);
+                        DrawPoint(color, x + xi, y + yi);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Gets a rectangle of pixels and stores it into a bitmap
+        /// </summary>
+        /// <param name="X">the x coordinate of the rectangle</param>
+        /// <param name="Y">the y coordinate of the rectangle</param>
+        /// <param name="W">the width of the rectangle</param>
+        /// <param name="H">the height of the rectangle</param>
+        /// <returns>bitmap</returns>
+        public Bitmap GetPixels(int X,int Y,ushort W,ushort H)
+        {
+
+            Bitmap tmp = new Bitmap(W,H,this.Mode.ColorDepth);
+
+            for (int x = X; x < W + X; x++)
+            {
+                for (int y = Y; y < H + Y; y++)
+                {
+                    tmp.SetPixel(GetPointColor(x,y),x - X,y - Y);
+                }
+            }
+
+            return tmp;
+
+        }
+
+        /// <summary>
+        /// Draws a string using the given bitmap font.
+        /// </summary>
+        /// <param name="str">The string to draw.</param>
+        /// <param name="font">The bitmap font to use.</param>
+        /// <param name="color">The color to write the string with.</param>
+        /// <param name="x">The origin X coordinate.</param>
+        /// <param name="y">The origin Y coordinate.</param>
+        public virtual void DrawString(string str, Font font, Color color, int x, int y)
+        {
+            var len = str.Length;
+            var width = font.Width;
+
+            for (int i = 0; i < len; i++)
+            {
+                DrawChar(str[i], font, color, x, y);
+                x += width;
+            }
+        }
+
+        /// <summary>
+        /// Draws a single character using the given bitmap font.
+        /// </summary>
+        /// <param name="c">The character to draw.</param>
+        /// <inheritdoc cref="DrawString(string, Font, Color, int, int)"/>
+        public virtual void DrawChar(char c, Font font, Color color, int x, int y)
+        {
+            var height = font.Height;
+            var width = font.Width;
+            var data = font.Data;
+            int p = height * (byte)c;
+
+            for (int cy = 0; cy < height; cy++)
+            {
+                for (byte cx = 0; cx < width; cx++)
+                {
+                    if (font.ConvertByteToBitAddress(data[p + cy], cx + 1))
+                    {
+                        DrawPoint(color, (ushort)(x + cx), (ushort)(y + cy));
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Checks if the given video mode is valid.
+        /// </summary>
+        /// <param name="mode">The target video mode.</param>
         protected bool CheckIfModeIsValid(Mode mode)
         {
-            Global.mDebugger.SendInternal($"CheckIfModeIsValid");
-
-            /* To keep or not to keep, that is the question~
-            if (mode == null)
-            {
-                return false;
-            }
-            */
-
-            /* This would have been the more "modern" version but LINQ is not working
-
-            if (!availableModes.Exists(element => element == mode))
-                return true;
-
-            */
-
             foreach (var elem in AvailableModes)
             {
-                Global.mDebugger.SendInternal($"elem is {elem} mode is {mode}");
                 if (elem == mode)
                 {
-                    Global.mDebugger.SendInternal($"Mode {mode} found");
                     return true; // All OK mode does exists in availableModes
                 }
             }
 
-            Global.mDebugger.SendInternal($"Mode {mode} found");
             return false;
         }
 
         /// <summary>
-        /// Check if video mode is valid. Throw exception if not.
+        /// Validates the given video mode, and throws an exception if the
+        /// given value is invalid.
         /// </summary>
-        /// <param name="mode">Video mode.</param>
-        /// <exception cref="ArgumentOutOfRangeException">Thrown if mode is not suppoted.</exception>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown if the mode is not supported.</exception>
         protected void ThrowIfModeIsNotValid(Mode mode)
         {
             if (CheckIfModeIsValid(mode))
@@ -1087,146 +887,129 @@ namespace Cosmos.System.Graphics
                 return;
             }
 
-            Global.mDebugger.SendInternal($"Mode {mode} is not found! Raising exception...");
-            /* 'mode' was not in the 'availableModes' List ==> 'mode' in NOT Valid */
-            throw new ArgumentOutOfRangeException(nameof(mode), $"Mode {mode} is not supported by this Driver");
+            throw new ArgumentOutOfRangeException(nameof(mode), $"Mode {mode} is not supported by this driver");
         }
 
         /// <summary>
-        /// Check if coordinats are valid. Throw exception if not.
+        /// Validates that the given coordinates are in-range of the canvas, and
+        /// throws an exception if the coordinates are out-of-bounds.
         /// </summary>
-        /// <param name="point">Point on the convas.</param>
-        /// <exception cref="ArgumentOutOfRangeException">Thrown if coordinates are invalid.</exception>
-        protected void ThrowIfCoordNotValid(Point point)
-        {
-            ThrowIfCoordNotValid(point.X, point.Y);
-        }
-
-        /// <summary>
-        /// Check if coordinats are valid. Throw exception if not.
-        /// </summary>
-        /// <param name="x">X coordinate.</param>
-        /// <param name="y">Y coordinate.</param>
-        /// <exception cref="ArgumentOutOfRangeException">Thrown if coordinates are invalid.</exception>
+        /// <param name="x">The X coordinate.</param>
+        /// <param name="y">The Y coordinate.</param>
+        /// <exception cref="ArgumentOutOfRangeException">Thrown if the coordinates are invalid.</exception>
         protected void ThrowIfCoordNotValid(int x, int y)
         {
-            if (x < 0 || x >= Mode.Columns)
+            if (x < 0 || x >= Mode.Width)
             {
-                throw new ArgumentOutOfRangeException(nameof(x), $"x ({x}) is not between 0 and {Mode.Columns}");
+                throw new ArgumentOutOfRangeException(nameof(x), $"X coordinate ({x}) is not between 0 and {Mode.Width}");
             }
 
-            if (y < 0 || y >= Mode.Rows)
+            if (y < 0 || y >= Mode.Height)
             {
-                throw new ArgumentOutOfRangeException(nameof(y), $"y ({y}) is not between 0 and {Mode.Rows}");
+                throw new ArgumentOutOfRangeException(nameof(y), $"Y coordinate ({y}) is not between 0 and {Mode.Height}");
             }
         }
 
-        /// <summary>
-        /// TrimLine
-        /// </summary>
-        /// <param name="x1">X coordinate.</param>
-        /// <param name="y1">Y coordinate.</param>
-        /// <param name="x2">X coordinate.</param>
-        /// <param name="y2">Y coordinate.</param>
         protected void TrimLine(ref int x1, ref int y1, ref int x2, ref int y2)
         {
             // in case of vertical lines, no need to perform complex operations
             if (x1 == x2)
             {
-                x1 = Math.Min(Mode.Columns - 1, Math.Max(0, x1));
+                x1 = Math.Min((int)Mode.Width - 1, Math.Max(0, x1));
                 x2 = x1;
-                y1 = Math.Min(Mode.Rows - 1, Math.Max(0, y1));
-                y2 = Math.Min(Mode.Rows - 1, Math.Max(0, y2));
+                y1 = Math.Min((int)Mode.Height - 1, Math.Max(0, y1));
+                y2 = Math.Min((int)Mode.Height - 1, Math.Max(0, y2));
 
                 return;
             }
 
             // never attempt to remove this part,
             // if we didn't calculate our new values as floats, we would end up with inaccurate output
-            float x1_out = x1, y1_out = y1;
-            float x2_out = x2, y2_out = y2;
+            float x1Out = x1, y1Out = y1;
+            float x2Out = x2, y2Out = y2;
 
             // calculate the line slope, and the entercepted part of the y axis
-            float m = (y2_out - y1_out) / (x2_out - x1_out);
-            float c = y1_out - m * x1_out;
+            float m = (y2Out - y1Out) / (x2Out - x1Out);
+            float c = y1Out - (m * x1Out);
 
             // handle x1
-            if (x1_out < 0)
+            if (x1Out < 0)
             {
-                x1_out = 0;
-                y1_out = c;
+                x1Out = 0;
+                y1Out = c;
             }
-            else if (x1_out >= Mode.Columns)
+            else if (x1Out >= Mode.Width)
             {
-                x1_out = Mode.Columns - 1;
-                y1_out = (Mode.Columns - 1) * m + c;
+                x1Out = Mode.Width - 1;
+                y1Out = ((Mode.Width - 1) * m) + c;
             }
 
             // handle x2
-            if (x2_out < 0)
+            if (x2Out < 0)
             {
-                x2_out = 0;
-                y2_out = c;
+                x2Out = 0;
+                y2Out = c;
             }
-            else if (x2_out >= Mode.Columns)
+            else if (x2Out >= Mode.Width)
             {
-                x2_out = Mode.Columns - 1;
-                y2_out = (Mode.Columns - 1) * m + c;
+                x2Out = Mode.Width - 1;
+                y2Out = ((Mode.Width - 1) * m) + c;
             }
 
             // handle y1
-            if (y1_out < 0)
+            if (y1Out < 0)
             {
-                x1_out = -c / m;
-                y1_out = 0;
+                x1Out = -c / m;
+                y1Out = 0;
             }
-            else if (y1_out >= Mode.Rows)
+            else if (y1Out >= Mode.Height)
             {
-                x1_out = (Mode.Rows - 1 - c) / m;
-                y1_out = Mode.Rows - 1;
+                x1Out = (Mode.Height - 1 - c) / m;
+                y1Out = Mode.Height - 1;
             }
 
             // handle y2
-            if (y2_out < 0)
+            if (y2Out < 0)
             {
-                x2_out = -c / m;
-                y2_out = 0;
+                x2Out = -c / m;
+                y2Out = 0;
             }
-            else if (y2_out >= Mode.Rows)
+            else if (y2Out >= Mode.Height)
             {
-                x2_out = (Mode.Rows - 1 - c) / m;
-                y2_out = Mode.Rows - 1;
+                x2Out = (Mode.Height - 1 - c) / m;
+                y2Out = Mode.Height - 1;
             }
 
             // final check, to avoid lines that are totally outside bounds
-            if (x1_out < 0 || x1_out >= Mode.Columns || y1_out < 0 || y1_out >= Mode.Rows)
+            if (x1Out < 0 || x1Out >= Mode.Width || y1Out < 0 || y1Out >= Mode.Height)
             {
-                x1_out = 0; x2_out = 0;
-                y1_out = 0; y2_out = 0;
+                x1Out = 0; x2Out = 0;
+                y1Out = 0; y2Out = 0;
             }
 
-            if (x2_out < 0 || x2_out >= Mode.Columns || y2_out < 0 || y2_out >= Mode.Rows)
+            if (x2Out < 0 || x2Out >= Mode.Width || y2Out < 0 || y2Out >= Mode.Height)
             {
-                x1_out = 0; x2_out = 0;
-                y1_out = 0; y2_out = 0;
+                x1Out = 0; x2Out = 0;
+                y1Out = 0; y2Out = 0;
             }
 
             // replace inputs with new values
-            x1 = (int)x1_out; y1 = (int)y1_out;
-            x2 = (int)x2_out; y2 = (int)y2_out;
+            x1 = (int)x1Out; y1 = (int)y1Out;
+            x2 = (int)x2Out; y2 = (int)y2Out;
         }
 
         /// <summary>
-        /// Calculate new Color from back Color with alpha
+        /// Blends between color <paramref name="from"/> and <paramref name="to"/>,
+        /// using the given <paramref name="alpha"/> value.
         /// </summary>
-        /// <param name="to">Color to calculate.</param>
-        /// <param name="from">Color used to calculate.</param>
-        /// <param name="alpha">Alpha amount.</param>
-        public Color AlphaBlend(Color to, Color from, byte alpha)
+        /// <param name="to">The background color.</param>
+        /// <param name="from">The foreground color.</param>
+        /// <param name="alpha">The alpha value.</param>
+        public static Color AlphaBlend(Color to, Color from, byte alpha)
         {
-            byte R = (byte)((to.R * alpha + from.R * (255 - alpha)) >> 8);
-            byte G = (byte)((to.G * alpha + from.G * (255 - alpha)) >> 8);
-            byte B = (byte)((to.B * alpha + from.B * (255 - alpha)) >> 8);
+            byte R = (byte)(((to.R * alpha) + (from.R * (255 - alpha))) >> 8);
+            byte G = (byte)(((to.G * alpha) + (from.G * (255 - alpha))) >> 8);
+            byte B = (byte)(((to.B * alpha) + (from.B * (255 - alpha))) >> 8);
             return Color.FromArgb(R, G, B);
         }
     }

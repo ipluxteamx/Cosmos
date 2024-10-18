@@ -1,8 +1,5 @@
-using System;
 using System.Globalization;
-
 using Cosmos.Common;
-
 using IL2CPU.API.Attribs;
 
 namespace Cosmos.System_Plugs.System
@@ -51,7 +48,7 @@ namespace Cosmos.System_Plugs.System
                     Console.WriteLine("' not found!");
                     throw new FormatException();
                 }
-                result = (short)((result * 10) + ind);
+                result = (short)(result * 10 + ind);
             }
 
             if (neg)

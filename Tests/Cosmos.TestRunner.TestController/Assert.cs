@@ -44,12 +44,14 @@ namespace Cosmos.TestRunner
             if (!xResult)
             {
                 TestController.Debugger.Send("Expected value");
-                TestController.Debugger.SendNumber((uint) expected);
+                TestController.Debugger.SendNumber(expected);
                 TestController.Debugger.Send("Actual value");
-                TestController.Debugger.SendNumber((uint)actual);
+                TestController.Debugger.SendNumber(actual);
 
-                TestController.Debugger.SendNumber("TestAssertion", "Expected", (uint)expected, 32);
-                TestController.Debugger.SendNumber("TestAssertion", "Actual", (uint)actual, 32);
+                TestController.Debugger.Send("Expected value");
+                TestController.Debugger.SendNumber(expected);
+                TestController.Debugger.Send("Actual value");
+                TestController.Debugger.SendNumber(actual);
 
                 TestController.Debugger.Send("Numbers sent!");
             }
@@ -84,7 +86,7 @@ namespace Cosmos.TestRunner
             if (!xResult)
             {
                 TestController.Debugger.Send($"Expected value: '{expected}' " + BitConverter.ToString(BitConverter.GetBytes(expected)));
-                TestController.Debugger.Send($"Actual value: '{actual}' " + BitConverter.ToString(BitConverter.GetBytes(expected)));
+                TestController.Debugger.Send($"Actual value: '{actual}' " + BitConverter.ToString(BitConverter.GetBytes(actual)));
                 TestController.Debugger.Send($"Diff: {xResult}");
             }
             IsTrue(xResult, message, file, line);
@@ -130,8 +132,10 @@ namespace Cosmos.TestRunner
                 TestController.Debugger.Send("Actual value");
                 TestController.Debugger.SendNumber((uint)actual);
 
-                TestController.Debugger.SendNumber("TestAssertion", "Expected", (uint)expected, 32);
-                TestController.Debugger.SendNumber("TestAssertion", "Actual", (uint)actual, 32);
+                TestController.Debugger.Send("Expected value");
+                TestController.Debugger.SendNumber(expected);
+                TestController.Debugger.Send("Actual value");
+                TestController.Debugger.SendNumber(actual);
 
                 TestController.Debugger.Send("Numbers sent!");
             }

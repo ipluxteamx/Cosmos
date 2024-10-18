@@ -1,6 +1,7 @@
 //#define COSMOSDEBUG
 using System;
 using System.Globalization;
+using System.Text;
 using Cosmos.Common;
 using IL2CPU.API;
 using IL2CPU.API.Attribs;
@@ -11,7 +12,7 @@ namespace Cosmos.Core_Plugs.System
     [Plug(Target = typeof(string))]
     public static class StringImpl
     {
-        internal static Debugger mDebugger = new Debugger("Core", "String Plugs");
+        internal static Debugger mDebugger = new("String Plug");
 
         public static unsafe void Ctor(string aThis, char* aChars,
             [FieldAccess(Name = "System.String System.String.Empty")] ref string aStringEmpty,
@@ -35,6 +36,11 @@ namespace Cosmos.Core_Plugs.System
             [FieldAccess(Name = "System.Int32 System.String._stringLength")] ref int aStringLength,
             [FieldAccess(Name = "System.Char System.String._firstChar")] char* aFirstChar)
         {
+            if (length < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(length), "Cannot initialize a string with a negative length");
+            }
+
             aStringEmpty = "";
             aStringLength = length;
             for (int i = 0; i < length; i++)
@@ -61,6 +67,11 @@ namespace Cosmos.Core_Plugs.System
             [FieldAccess(Name = "System.Int32 System.String._stringLength")] ref int aStringLength,
             [FieldAccess(Name = "System.Char System.String._firstChar")] char* aFirstChar)
         {
+            if (length < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(length), "Cannot initialize a string with a negative length");
+            }
+
             aStringEmpty = "";
             aStringLength = length;
             for (int i = 0; i < length; i++)
@@ -74,6 +85,11 @@ namespace Cosmos.Core_Plugs.System
             [FieldAccess(Name = "System.Int32 System.String._stringLength")] ref int aStringLength,
             [FieldAccess(Name = "System.Char System.String._firstChar")] char* aFirstChar)
         {
+            if (aLength < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(aLength), "Cannot initialize a string with a negative length");
+            }
+
             aStringEmpty = "";
             aStringLength = aLength;
             for (int i = 0; i < aLength; i++)
@@ -123,8 +139,6 @@ namespace Cosmos.Core_Plugs.System
             return *(aFirstChar + aIndex);
         }
 
-
-
         public static bool IsAscii(string aThis)
         {
             for (int i = 0; i < aThis.Length; i++)
@@ -135,168 +149,6 @@ namespace Cosmos.Core_Plugs.System
                 }
             }
             return true;
-        }
-
-        public static string Format(string aFormat, object aArg0)
-        {
-            if (aArg0 == null)
-            {
-                throw new ArgumentNullException(aFormat == null ? "aFormat" : "aArgs");
-            }
-
-            return FormatHelper(null, aFormat, aArg0);
-        }
-
-        public static string Format(string aFormat, object aArg0, object aArg1)
-        {
-            if (aFormat == null)
-            {
-                throw new ArgumentNullException(nameof(aFormat));
-            }
-            if (aArg0 == null)
-            {
-                throw new ArgumentNullException(nameof(aArg0));
-            }
-            if (aArg1 == null)
-            {
-                throw new ArgumentNullException(nameof(aArg1));
-            }
-
-            return FormatHelper(null, aFormat, aArg0, aArg1);
-        }
-
-        public static string Format(string aFormat, object aArg0, object aArg1, object aArg2)
-        {
-            if (aArg0 == null || aArg1 == null || aArg2 == null)
-            {
-                throw new ArgumentNullException(aFormat == null ? "aFormat" : "aArgs");
-            }
-
-            return FormatHelper(null, aFormat, aArg0, aArg1, aArg2);
-        }
-
-        public static string Format(string aFormat, params object[] aArgs)
-        {
-            if (aArgs == null)
-            {
-                throw new ArgumentNullException(aFormat == null ? "aFormat" : "aArgs");
-            }
-
-            return FormatHelper(null, aFormat, aArgs);
-        }
-
-        public static string Format(IFormatProvider aProvider, string aFormat, object aArg0)
-        {
-            if (aArg0 == null)
-            {
-                throw new ArgumentNullException(aFormat == null ? "aFormat" : "aArgs");
-            }
-
-            return FormatHelper(aProvider, aFormat, aArg0);
-        }
-
-        public static string Format(IFormatProvider aProvider, string aFormat, object aArg0, object aArg1)
-        {
-            if (aArg0 == null | aArg1 == null)
-            {
-                throw new ArgumentNullException(aFormat == null ? "aFormat" : "aArgs");
-            }
-
-            return FormatHelper(aProvider, aFormat, aArg0, aArg1);
-        }
-
-        public static string Format(IFormatProvider aProvider, string aFormat, object aArg0, object aArg1, object aArg2)
-        {
-            if (aArg0 == null | aArg1 == null || aArg2 == null)
-            {
-                throw new ArgumentNullException(aFormat == null ? "aFormat" : "aArgs");
-            }
-
-            return FormatHelper(aProvider, aFormat, aArg0, aArg1, aArg2);
-        }
-
-        public static string Format(IFormatProvider aProvider, string aFormat, params object[] aArgs)
-        {
-            if (aArgs == null)
-            {
-                throw new ArgumentNullException(aFormat == null ? "aFormat" : "aArgs");
-            }
-
-            return FormatHelper(aProvider, aFormat, aArgs);
-        }
-
-        internal static string FormatHelper(IFormatProvider aFormatProvider, string aFormat, params object[] aArgs)
-        {
-            char[] xCharArray = aFormat.ToCharArray();
-            string xFormattedString = string.Empty, xStaticString;
-            bool xFoundPlaceholder = false, xParamNumberDone = true;
-            int xStartParamNumber = -1, xEndParamNumber = -1, xLastPlaceHolder = 0;
-
-            for (int i = 0; i < xCharArray.Length; i++)
-            {
-                if (xFoundPlaceholder)
-                {
-                    if (xCharArray[i] == '{')
-                    {
-                        throw new FormatException("The format string provided is invalid.");
-                    }
-                    if (xCharArray[i] == '}')
-                    {
-                        mDebugger.SendInternal("Found closing placeholder.");
-                        if (xEndParamNumber < 0)
-                        {
-                            xEndParamNumber = i;
-                        }
-                        string xParamNumber = aFormat.Substring(xStartParamNumber, xEndParamNumber - xStartParamNumber);
-                        mDebugger.SendInternal("Calling StringHelper.GetStringToNumber");
-                        mDebugger.SendInternal(xParamNumber);
-                        int xParamIndex = StringHelper.GetStringToNumber(xParamNumber);
-                        mDebugger.SendInternal("Converted paramindex to a number.");
-                        if ((xParamIndex < aArgs.Length) && (aArgs[xParamIndex] != null))
-                        {
-                            string xParamValue = aArgs[xParamIndex].ToString();
-                            xFormattedString = string.Concat(xFormattedString, xParamValue);
-                            mDebugger.SendInternal("xParamValue =");
-                            mDebugger.SendInternal(xParamValue);
-                            mDebugger.SendInternal("xFormattedString =");
-                            mDebugger.SendInternal(xFormattedString);
-
-                        }
-                        xFoundPlaceholder = false;
-                        xParamNumberDone = true;
-                        xStartParamNumber = -1;
-                        xEndParamNumber = -1;
-                        xLastPlaceHolder = i + 1;
-                    }
-                    else if (xCharArray[i] == ':')
-                    {
-                        xParamNumberDone = true;
-                        xEndParamNumber = i;
-                        // TODO: Need to handle different formats. (X, N, etc)
-                    }
-                    else if ((char.IsDigit(xCharArray[i])) && (!xParamNumberDone))
-                    {
-                        mDebugger.SendInternal("Getting param number.");
-                        if (xStartParamNumber < 0)
-                        {
-                            xStartParamNumber = i;
-                        }
-                    }
-                }
-                else if (xCharArray[i] == '{')
-                {
-                    mDebugger.SendInternal("Found opening placeholder");
-                    xStaticString = aFormat.Substring(xLastPlaceHolder, i - xLastPlaceHolder);
-                    xFormattedString = string.Concat(xFormattedString, xStaticString);
-                    xFoundPlaceholder = true;
-                    xParamNumberDone = false;
-                }
-            }
-
-            xStaticString = aFormat.Substring(xLastPlaceHolder, aFormat.Length - xLastPlaceHolder);
-            xFormattedString = string.Concat(xFormattedString, xStaticString);
-
-            return xFormattedString;
         }
 
         public static bool StartsWith(string aThis, string aSubstring, StringComparison aComparison)
@@ -409,13 +261,13 @@ namespace Cosmos.Core_Plugs.System
 
         // HACK: TODO - improve efficiency of this.
         //How do we access the raw memory to copy it into a char array?
-        public static char[] ToCharArray(string aThis)
+        public static unsafe char[] ToCharArray(string aThis)
         {
-            var result = new char[aThis.Length];
+            char[] result = new char[aThis.Length];
 
-            for (int i = 0; i < aThis.Length; i++)
+            fixed (char* P1 = aThis, P2 = result)
             {
-                result[i] = aThis[i];
+                MemoryOperationsImpl.Copy((byte*)P2, (byte*)P1, aThis.Length * sizeof(char));
             }
 
             return result;
@@ -475,7 +327,7 @@ namespace Cosmos.Core_Plugs.System
 
         public static int IndexOf(string aThis, string aSubstring, int aIdx, int aLength, StringComparison aComparison)
         {
-            if (aSubstring == String.Empty)
+            if (aSubstring == string.Empty)
             {
                 return aIdx;
             }
@@ -638,7 +490,7 @@ namespace Cosmos.Core_Plugs.System
 
         public static int LastIndexOf(string aThis, string aString, int aIndex, int aCount)
         {
-            if (aString == String.Empty)
+            if (aString == string.Empty)
             {
                 if (aIndex > aThis.Length)
                 {
@@ -677,78 +529,10 @@ namespace Cosmos.Core_Plugs.System
             return -1;
         }
 
-        //public static int nativeCompareOrdinalEx(string aStrA, int aIndexA, string aStrB, int aIndexB, int aCount)
-        //{
-        //    mDebugger.SendInternal($"nativeCompareOrdinalEx : aStrA|aIndexA = {aStrA}|{aIndexA}, aStrB|aIndexB = {aStrB}|{aIndexB}, aCount = {aCount}");
-        //    if (aCount < 0)
-        //    {
-        //        throw new ArgumentOutOfRangeException(nameof(aCount));
-        //    }
-
-        //    if (aIndexA < 0 || aIndexA > aStrA.Length)
-        //    {
-        //        throw new ArgumentOutOfRangeException(nameof(aIndexA));
-        //    }
-
-        //    if (aIndexB < 0 || aIndexB > aStrB.Length)
-        //    {
-        //        throw new ArgumentOutOfRangeException(nameof(aIndexB));
-        //    }
-
-        //    if (aStrA == null)
-        //    {
-        //        mDebugger.SendInternal("nativeCompareOrdinalEx : aStrA is null");
-        //        if (aStrB == null)
-        //        {
-        //            mDebugger.SendInternal($"nativeCompareOrdinalEx : aStrB is null");
-        //            mDebugger.SendInternal($"nativeCompareOrdinalEx : returning 0");
-        //            return 0;
-        //        }
-        //        mDebugger.SendInternal($"nativeCompareOrdinalEx : aStrB is not null");
-        //        mDebugger.SendInternal($"nativeCompareOrdinalEx : returning -1");
-        //        return -1;
-        //    }
-        //    if (aStrB == null)
-        //    {
-        //        mDebugger.SendInternal("nativeCompareOrdinalEx : aStrA is not null");
-        //        mDebugger.SendInternal($"nativeCompareOrdinalEx : aStrB is null");
-        //        mDebugger.SendInternal($"nativeCompareOrdinalEx : returning 1");
-        //        return 1;
-        //    }
-        //    int xLengthA = Math.Min(aStrA.Length, aCount - aIndexA);
-        //    int xLengthB = Math.Min(aStrB.Length, aCount - aIndexB);
-        //    //mDebugger.SendInternal($"nativeCompareOrdinalEx : xLengthA = {xLengthA}");
-        //    //mDebugger.SendInternal($"nativeCompareOrdinalEx : xLengthB = {xLengthB}");
-
-        //    if (xLengthA == xLengthB && aIndexA == aIndexB && ReferenceEquals(aStrA, aStrB))
-        //    {
-        //        mDebugger.SendInternal("nativeCompareOrdinalEx : xLengthA == xLengthB && aIndexA == aIndexB && aStrA is the same object asaStrB, returning 0");
-        //        return 0;
-        //    }
-
-        //    int xResult = 0;
-        //    if (xLengthA != xLengthB)
-        //    {
-        //        xResult = xLengthA - xLengthB;
-        //        mDebugger.SendInternal("nativeCompareOrdinalEx : xLengthA != xLengthB, returning " + xResult);
-        //    }
-
-        //    for (int i = 0; i < xLengthA; i++)
-        //    {
-        //        if (aStrA != aStrB)
-        //        {
-        //            xResult = (byte)aStrA[i] - (byte)aStrB[i];
-        //            mDebugger.SendInternal("nativeCompareOrdinalEx : aStrA[i] != aStrB[i], returning " + xResult);
-        //            return xResult;
-        //        }
-        //    }
-
-        //    mDebugger.SendInternal("nativeCompareOrdinalEx (end of func) : aStrA[i] != aStrB[i], returning " + xResult);
-        //    return xResult;
-        //}
-
-        public static bool StartsWith(string aThis, string aSubStr, bool aIgnoreCase, CultureInfo aCulture) =>
-            aThis.StartsWith(aSubStr, aIgnoreCase ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+        public static bool StartsWith(string aThis, string aSubStr, bool aIgnoreCase, CultureInfo aCulture)
+        {
+            return aThis.StartsWith(aSubStr, aIgnoreCase ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+        }
 
         public static string Replace(string aThis, string oldValue, string newValue)
         {
@@ -788,7 +572,7 @@ namespace Cosmos.Core_Plugs.System
             for (int i = 0; i < aValue.Length; i++)
             {
                 int xAsciiCode = aValue[i];
-                if ((xAsciiCode <= upperAscii) && (xAsciiCode >= lowerAscii))
+                if (xAsciiCode <= upperAscii && xAsciiCode >= lowerAscii)
                 {
                     xChars[i] = (char)(xAsciiCode + offset);
                 }
@@ -803,7 +587,7 @@ namespace Cosmos.Core_Plugs.System
 
         public static string FastAllocateString(int aLength)
         {
-            return new string(new char[aLength]);   
+            return new string(new char[aLength]);
         }
 
         [PlugMethod(IsOptional = true)]
@@ -830,14 +614,14 @@ namespace Cosmos.Core_Plugs.System
             throw new ArgumentNullException();
         }
 
-        internal static unsafe char *GetFirstChar(string aThis, [FieldAccess(Name = "System.Char System.String.m_firstChar")] char* aFirstChar)
+        internal static unsafe char* GetFirstChar(string aThis, [FieldAccess(Name = "System.Char System.String.m_firstChar")] char* aFirstChar)
         {
             return aFirstChar;
         }
 
         private static unsafe int FastCompareStringHelper(uint* strAChars, int countA, uint* strBChars, int countB)
         {
-            int count = (countA < countB) ? countA : countB;
+            int count = countA < countB ? countA : countB;
 
 #if BIT64
             long diff = (long)((byte*)strAChars - (byte*)strBChars);
@@ -945,21 +729,28 @@ namespace Cosmos.Core_Plugs.System
                 // Reads are potentially unaligned
                 while ((count -= 2) >= 0)
                 {
-                    if ((*((uint*)((byte*)strBChars + diff)) - *strBChars) != 0)
+                    if (*(uint*)((byte*)strBChars + diff) - *strBChars != 0)
                     {
                         char* ptr1 = (char*)((byte*)strBChars + diff);
                         char* ptr2 = (char*)strBChars;
                         if (*ptr1 != *ptr2)
-                            return ((int)*ptr1 - (int)*ptr2);
-                        return ((int)*(ptr1 + 1) - (int)*(ptr2 + 1));
+                        {
+                            return *ptr1 - *ptr2;
+                        }
+
+                        return *(ptr1 + 1) - *(ptr2 + 1);
                     }
                     ++strBChars;
                 }
 
                 int c;
                 if (count == -1)
-                    if ((c = *((char*)((byte*)strBChars + diff)) - *((char*)strBChars)) != 0)
+                {
+                    if ((c = *(char*)((byte*)strBChars + diff) - *(char*)strBChars) != 0)
+                    {
                         return c;
+                    }
+                }
             }
 
             return countA - countB;
@@ -980,7 +771,7 @@ namespace Cosmos.Core_Plugs.System
             /* Totally managed version but requires changes to IL2CPU to work */
 #if true
             // Please note that Argument validation should be handled by callers.
-            int count = (countA < countB) ? countA : countB;
+            int count = countA < countB ? countA : countB;
             int xResult = 0;
 
             strA = strA.Substring(indexA);
@@ -1030,16 +821,60 @@ namespace Cosmos.Core_Plugs.System
             int lengthA = Math.Min(length, strA.Length - indexA);
             int lengthB = Math.Min(length, strB.Length - indexB);
 
-            switch (comparisonType)
+            return comparisonType switch
             {
-                case StringComparison.Ordinal:
-                    return CompareOrdinalHelper(strA, indexA, lengthA, strB, indexB, lengthB);
+                StringComparison.Ordinal => CompareOrdinalHelper(strA, indexA, lengthA, strB, indexB, lengthB),
+                StringComparison.OrdinalIgnoreCase => CompareOrdinalHelperIgnoreCase(strA, indexA, lengthA, strB, indexB, lengthB),
+                _ => throw new ArgumentException("String comparison not supported!"),
+            };
+        }
 
-                case StringComparison.OrdinalIgnoreCase:
-                    return CompareOrdinalHelperIgnoreCase(strA, indexA, lengthA, strB, indexB, lengthB);
+        public static unsafe int GetNonRandomizedHashCode(string aString)
+        {
 
-                default:
-                    throw new ArgumentException("Not Supported StringComparison");
+            // the code is the same as the one used in .net except for the explicit == 2 and == 1 cases
+            // we need this since a new object can start directly behind the string in memory, so the standard
+            // implementation would read the allocated size of the next object and use it for the hash
+            var asSpan = aString.AsSpan();
+            if (asSpan.Length == 0)
+            {
+                unchecked
+                {
+                    return (int)(352654597u + 352654597u * 1566083941);
+                }
+            }
+
+            fixed (char* ptr = &asSpan[0])
+            {
+                uint num = 352654597u;
+                uint num2 = num;
+                uint* ptr2 = (uint*)ptr;
+                int num3 = aString.Length;
+                while (num3 >= 4)
+                {
+                    num3 -= 4;
+                    num = (global::System.Numerics.BitOperations.RotateLeft(num, 5) + num) ^ *ptr2;
+                    num2 = (global::System.Numerics.BitOperations.RotateLeft(num2, 5) + num2) ^ ptr2[1];
+                    ptr2 += 2;
+                }
+				if (num3 == 3)
+                {
+                    num2 = (global::System.Numerics.BitOperations.RotateLeft(num2, 5) + num2) ^ *ptr2;
+					num2 = (global::System.Numerics.BitOperations.RotateLeft(num2, 5) + num2) ^ ((char*)ptr2)[2];
+                }
+                else if (num3 == 2)
+                {
+                    num2 = (global::System.Numerics.BitOperations.RotateLeft(num2, 5) + num2) ^ *ptr2;
+                }
+                else if (num3 == 1)
+                {
+                    num2 = (global::System.Numerics.BitOperations.RotateLeft(num2, 5) + num2) ^ *(char*)ptr2;
+                }
+
+                unchecked
+                {
+                    return (int)(num + num2 * 1566083941);
+                }
             }
         }
     }

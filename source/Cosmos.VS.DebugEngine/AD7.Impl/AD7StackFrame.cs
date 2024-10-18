@@ -43,6 +43,7 @@ namespace Cosmos.VS.DebugEngine.AD7.Impl
       if (mHasSource = xProcess.mCurrentAddress.HasValue)
       {
         var xAddress = xProcess.mCurrentAddress.Value;
+        var label = xProcess.mDebugInfoDb.GetMethod(xAddress);
         var xSourceInfos = xProcess.mDebugInfoDb.GetSourceInfos(xAddress);
         if (!xSourceInfos.ContainsKey(xAddress))
         {
@@ -117,8 +118,8 @@ namespace Cosmos.VS.DebugEngine.AD7.Impl
           }
           else
           {
-            
-            AD7Util.MessageBox("No Symbol found for address 0x" + xAddress.ToString("X8").ToUpper());
+
+            AD7Util.ShowError("No Symbol found for address 0x" + xAddress.ToString("X8").ToUpper());
           }
           xProcess.DebugMsg(String.Format("StackFrame: Returning: {0}#{1}[{2}]", mDocName, mFunctionName, mLineNum));
         }

@@ -1,6 +1,4 @@
-using System;
 using Cosmos.Common;
-using System.Collections.Generic;
 using IL2CPU.API.Attribs;
 
 namespace Cosmos.System_Plugs.System
@@ -90,7 +88,7 @@ namespace Cosmos.System_Plugs.System
             float parsed = 0;
             for (int i = 0; i < internalDigits.Count; i++)
             {
-                parsed += internalDigits[i] * (float)Math.Pow(10, (internalDigits.Count - (i + 1)));
+                parsed += internalDigits[i] * (float)Math.Pow(10, internalDigits.Count - (i + 1));
             }
             for (int i = 0; i < fractionalDigits.Count; i++)
             {

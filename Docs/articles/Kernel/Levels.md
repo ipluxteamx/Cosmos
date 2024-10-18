@@ -1,4 +1,8 @@
-﻿The security model of Cosmos will evolve and mature as
+# Levels
+
+**Warning:** This article is for a older version of Cosmos, and as such, does not represent the current version included in the DevKit.
+
+The security model of Cosmos will evolve and mature as
 Cosmos does, however the base model is presented here.
 
 ###  Goals
@@ -204,3 +208,5 @@ references.
 1 Ethernet 
 2 TCP/IP
 3 Application
+
+*Last updated on 28 July 2023.*

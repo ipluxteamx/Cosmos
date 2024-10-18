@@ -19,7 +19,8 @@ namespace Cosmos.Build.Builder.BuildTasks
             IInnoSetupService innoSetupService,
             string scriptFilePath,
             string configuration,
-            string releaseVersion)
+            string releaseVersion,
+            bool InstallExtensions)
             : base(true, false)
         {
             _innoSetupService = innoSetupService;
@@ -30,8 +31,19 @@ namespace Cosmos.Build.Builder.BuildTasks
             {
                 ["BuildConfiguration"] = configuration,
                 ["ChangeSetVersion"] = releaseVersion,
-                ["RealPath"] = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData)
             };
+
+            if(!InstallExtensions)
+            {
+                _defines.Add("DoNotInstallExtensions", "1");
+            }
+
+            // when building the userkit we want to let innosetup determine the installation location
+            // see https://github.com/CosmosOS/Cosmos/issues/2329
+            if (configuration == "DevKit")
+            {
+                _defines["RealPath"] = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            }
         }
 
         protected override string GetExePath()

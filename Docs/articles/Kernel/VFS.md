@@ -1,9 +1,11 @@
 # File System
 
-In this article we will discuss about using Cosmos VFS (virtual file system).
-Cosmos VFS and the VFS manager classes, let you manage your file system.
+In this article, we will discuss about using Cosmos VFS (virtual file system).
+Cosmos VFS and the VFSManager classes, let you manage your file system.
 
-**Attention**: **Always** format your drive with Cosmos and **only** Cosmos if you plan to use it with Cosmos. Using any other tool such as Parted, FDisk (or any other tool) might lead to weird things when using that drive with Cosmos' VFS. Those tools are much more advanced and might format and read/write to the disk differently than Cosmos.
+**Attention**: **Always** format your drive with Cosmos and **only** Cosmos if you plan to use it with Cosmos. Using any other tool such as Parted, FDisk, or any other tool might lead to weird things when using that drive with Cosmos' VFS. Those tools are much more advanced and might format and read/write to the disk differently than Cosmos.
+
+**WARNING!**: Please do **not** try this on actual hardware! It may cause **IRREPARBLE DAMAGE** to your data. It is recommended to use a virtual machine like VMware or VirtualBox, just to name a few.
 
 First, we should create and initialize an instance of the VFS, this will initialize the partition and files-system lists, as well as register the new VFS.
 This is essential for using the VFS.
@@ -11,7 +13,7 @@ This is essential for using the VFS.
 We start with creating a global CosmosVFS, this line should appear outside of any function, and before the BeforeRun() function.
 
 ```C#
-Sys.FileSystem.CosmosVFS fs = new Sys.FileSystem.CosmosVFS();
+Sys.FileSystem.CosmosVFS fs = new Cosmos.System.FileSystem.CosmosVFS();
 ```
 
 Next, we register our VFS at the VFS manager, this will initiate the VFS and make it usable, add this to your kernel's BeforeRun() function:
@@ -20,26 +22,16 @@ Next, we register our VFS at the VFS manager, this will initiate the VFS and mak
 Sys.FileSystem.VFS.VFSManager.RegisterVFS(fs);
 ```
 
-After the initialization process is done, a message like this would appear on your screen:
-![Initialize](https://raw.githubusercontent.com/CosmosOS/Cosmos/master/Docs/articles/Kernel/images/File%20System%20Initialize.PNG)
+**Note**: From now on, we'll be using some plugged functions from ``System.IO``, so be sure to use that reference to your code. Now, let's get started over some useful functions:
 
-This message is printed by the RegisterVFS() method and it provides info about the partition.
-
-**Note**: From now on, we'll be using some plugged functions from ``System.IO``, so be sure to use that reference to your code. Alright, now, let's get started over some useful functions:
-
-## Format drive
+## Format disks
 
 **Note**: You don't have to format your drive if you're debugging your Cosmos project with VMWare. The build will automatically add an already formatted FAT32 VMDK file for your convenience.
 
-**Note 2**: You can only format a drive that already has been formatted with FAT32.
+You can get all available disks using `VFSManager.GetDisks()`. The methods to get information about the disk or format it can be found under the [Disk](https://cosmosos.github.io/api/Cosmos.System.FileSystem.Disk.html) class. 
+To format a disk use the [`FormatDisk(int index, string format, bool quick = true)`](https://cosmosos.github.io/api/Cosmos.System.FileSystem.Disk.html#Cosmos_System_FileSystem_Disk_FormatPartition_System_Int32_System_String_System_Boolean_)
+method.
 
-You can format your drive with the Format() function, just like this:
-
-```C#
-fs.Format("0" /*drive id*/, "FAT32" /*fat type*/, true /*use quick format*/);
-```
-
-**Attention**: **Don't** add anything after the drive id, or formatting won't work. You just need to put the drive id, here we put 0 to format the main drive.
 
 ## Get available free space
 
@@ -52,10 +44,10 @@ Console.WriteLine("Available Free Space: " + available_space);
 
 ![Free Space](https://raw.githubusercontent.com/CosmosOS/Cosmos/master/Docs/articles/Kernel/images/File%20System%20Free%20Space.PNG)
 
-You have probably noticed the "0:\" argument passed to this function, this is the id of the drive that we want to get available free space of.
-Cosmos using DOS drive naming system and this is why we use "0".
+You have probably noticed the "0:\" argument passed to this function, this is the ID of the drive that we want to get available free space of.
+Cosmos uses the DOS drive naming system, this is why we use "0".
 
-**Attention**: Typing "0:/" instead of "0:\" might lead to errors, you've been warned.
+**Attention**: Typing "0:/" instead of "0:\\" might lead to errors, you've been warned.
 
 ## Get file system type
 
@@ -69,24 +61,43 @@ var fs_type = fs.GetFileSystemType(@"0:\");
 Console.WriteLine("File System Type: " + fs_type);
 ```
 
-## Get files list
+## Get list of file
 
 We start by getting a list of files, using:
 
 ```C#
-var directory_list = Directory.GetFiles(@"0:\");
+var files_list = Directory.GetFiles(@"0:\");
 ```
 
 Once we have it, we can get the names of our files:
 
 ```C#
-foreach (var file in directory_list)
+foreach (var file in files_list)
 {
     Console.WriteLine(file);
 }
 ```
 
 ![Files List](https://raw.githubusercontent.com/CosmosOS/Cosmos/master/Docs/articles/Kernel/images/File%20System%20Files%20List.PNG)
+
+## Get directory listing (files and other directories)
+
+You can get files and directory listing by using this code: 
+
+```C#
+var files_list = Directory.GetFiles(@"0:\");
+var directory_list = Directory.GetDirectories(@"0:\");
+
+foreach (var file in files_list);
+{
+    Console.WriteLine(file)
+}
+foreach (var directory in directory_list)
+{
+    Console.WriteLine(directory);
+}
+```
+
 
 ## Read all the files in a directory
 
@@ -119,8 +130,6 @@ catch(Exception e)
 }
 ```
 
-![Read File](https://raw.githubusercontent.com/CosmosOS/Cosmos/master/Docs/articles/Kernel/images/File%20System%20Read%20File.PNG)
-
 ## Create new file
 Reading and writing is working on existing files, but it's much more useful to write to our own files.
 Let's jump right into it:
@@ -136,9 +145,35 @@ catch (Exception e)
 }
 ```
 
-We can also [check our files list](https://github.com/CosmosOS/Cosmos/wiki/FAT-FileSystem#get-files-list) and see our new file in it.
+## Create a new directory
+Here is a example of code of creating a new directory:
 
-![Create File](https://raw.githubusercontent.com/CosmosOS/Cosmos/master/Docs/articles/Kernel/images/File%20System%20Create%20File.PNG)
+```C#
+try
+{
+    Directory.Create(@"0:\testdirectory\");
+}
+catch (Exception e)
+{
+    Console.WriteLine(e.ToString());
+}
+```
+
+## Deleting a file or a directory
+
+You can also delete files or directories using this code:
+
+```C#
+try
+{
+    File.Delete(@"0:\testing.txt");
+    Directory.Delete(@"0:\testdirectory\");
+}
+catch (Exception e)
+{
+    Console.WriteLine(e.ToString());
+}
+```
 
 ## Write to file
 
@@ -157,9 +192,29 @@ catch (Exception e)
 }
 ```
 
-## Read specific file
+## Move a file
 
-Now we will read a specific file from a given path.  
+File.Move() is not currently plugged in Cosmos, so you need to copy the file and then delete the old file.
+Here is an example Method:
+```C#
+public static void MoveFile(string file, string newpath)
+{
+    try
+    {
+        File.Copy(file, newpath);
+        File.Delete(file);
+    }
+    catch(Exception e)
+    {
+        Console.WriteLine(ex);
+    }
+}
+```
+
+
+## Read all text from a specific file
+
+Now, we will read a specific file from a given path.
 As usual, we'll do it in a try catch block.
 
 ```C#
@@ -174,3 +229,20 @@ catch (Exception e)
 ```
 
 ![Read Specific File](https://raw.githubusercontent.com/CosmosOS/Cosmos/master/Docs/articles/Kernel/images/File%20System%20Read%20Specified%20File.PNG)
+
+# Read All bytes from a specific file
+
+As like the ReadAllText Method, ReadAllBytes should return all bytes the bytes from a file. You can use this to load files that include data and not just text.
+
+```C#
+try
+{
+    Console.WriteLine(File.ReadAllBytes(@"0:\testing.txt"));
+}
+catch (Exception e)
+{
+    Console.WriteLine(e.ToString());
+}
+```
+
+*Last updated on 2 November 2023.*

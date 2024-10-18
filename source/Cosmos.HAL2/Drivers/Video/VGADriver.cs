@@ -1,4 +1,3 @@
-//#define COSMOSDEBUG
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -13,338 +12,11 @@ Sets VGA-compatible video modes without using the BIOS
  * by Stephen Remde
 //*/
 
-namespace Cosmos.HAL
+namespace Cosmos.HAL.Drivers.Video
 {
     public class VGADriver
     {
-        internal Debugger mDebugger = new Debugger("HAL", "VGA");
-        private const byte _NumSeqRegs = 5;
-        private const byte _NumCRTCRegs = 25;
-        private const byte _NumGCRegs = 9;
-        private const byte _NumACRegs = 21;
-
-        Mode _Mode;
-        ScreenSize _ScreenSize;
-        ColorDepth _ColorDepth;
-
-
-        private readonly Core.IOGroup.VGA _IO = new Core.IOGroup.VGA();
-
-        private void WriteVGARegisters(byte[] aRegisters)
-        {
-            int xIdx = 0;
-            byte i;
-
-            /* write MISCELLANEOUS reg */
-            _IO.MiscellaneousOutput_Write.Byte = aRegisters[xIdx++];
-            /* write SEQUENCER regs */
-            for (i = 0; i < _NumSeqRegs; i++)
-            {
-                _IO.Sequencer_Index.Byte = i;
-                _IO.Sequencer_Data.Byte = aRegisters[xIdx++];
-            }
-            /* unlock CRTC registers */
-            _IO.CRTController_Index.Byte = 0x03;
-            _IO.CRTController_Data.Byte = (byte)(_IO.CRTController_Data.Byte | 0x80);
-            _IO.CRTController_Index.Byte = 0x11;
-            _IO.CRTController_Data.Byte = (byte)(_IO.CRTController_Data.Byte & 0x7F);
-
-            /* make sure they remain unlocked */
-            aRegisters[0x03] |= 0x80;
-            aRegisters[0x11] &= 0x7f;
-
-            /* write CRTC regs */
-            for (i = 0; i < _NumCRTCRegs; i++)
-            {
-                _IO.CRTController_Index.Byte = i;
-                _IO.CRTController_Data.Byte = aRegisters[xIdx++];
-            }
-            /* write GRAPHICS CONTROLLER regs */
-            for (i = 0; i < _NumGCRegs; i++)
-            {
-                _IO.GraphicsController_Index.Byte = i;
-                _IO.GraphicsController_Data.Byte = aRegisters[xIdx++];
-            }
-            /* write ATTRIBUTE CONTROLLER regs */
-            for (i = 0; i < _NumACRegs; i++)
-            {
-                var _ = _IO.Instat_Read.Byte;
-                _IO.AttributeController_Index.Byte = i;
-                _IO.AttributeController_Write.Byte = aRegisters[xIdx++];
-            }
-            /* lock 16-color palette and unblank display */
-            _ = _IO.Instat_Read.Byte;
-            _IO.AttributeController_Index.Byte = 0x20;
-            mDebugger.Send("Finished writing VGA registers");
-        }
-
-        /// <summary>
-        /// Set plane.
-        /// </summary>
-        /// <param name="p">p to set.</param>
-        private void SetPlane(byte aP)
-        {
-            byte pmask;
-
-            aP &= 3;
-            pmask = (byte)(1 << aP);
-            /* set read plane */
-            _IO.GraphicsController_Index.Byte = 4;
-            _IO.GraphicsController_Data.Byte = aP;
-            /* set write plane */
-            _IO.Sequencer_Index.Byte = 2;
-            _IO.Sequencer_Data.Byte = pmask;
-        }
-
-        //int offset = 0xb8000;
-        /// <summary>
-        /// Get frame buffer segment.
-        /// </summary>
-        /// <returns>MemoryBlock08 value.</returns>
-        /// <exception cref="Exception">Thrown when unable to determine memory segment.</exception>
-        private MemoryBlock GetFramebufferSegment()
-        {
-            _IO.GraphicsController_Index.Byte = 6;
-            int seg = _IO.GraphicsController_Data.Byte;
-            mDebugger.Send($"VGA: raw seg value: {seg}");
-            seg >>= 2;
-
-            seg &= 3;
-            switch (seg)
-            {
-                case 0:
-                case 1:
-                    return _IO.VGAMemoryBlock;
-                case 2:
-                    return _IO.MonochromeTextMemoryBlock;
-                case 3:
-                    return _IO.CGATextMemoryBlock;
-            }
-            throw new Exception("Unable to determine memory segment!");
-        }
-
-        /// <summary>
-        /// Write font.
-        /// </summary>
-        /// <param name="font">Font.</param>
-        /// <param name="font_height">Font height.</param>
-        /// <exception cref="Exception">Thrown when unable to determine memory segment.</exception>
-        public void WriteFont(byte[] aFont, byte aFontHeight)
-        {
-            byte seq2, seq4, gc4, gc5, gc6;
-
-            /* save registers
-                set_plane() modifies GC 4 and SEQ 2, so save them as well */
-            _IO.Sequencer_Index.Byte = 2;
-            seq2 = _IO.Sequencer_Data.Byte;
-
-            _IO.Sequencer_Index.Byte = 4;
-            seq4 = _IO.Sequencer_Data.Byte;
-
-            /* turn off even-odd addressing (set flat addressing)
-            assume: chain-4 addressing already off */
-            _IO.Sequencer_Data.Byte = (byte)(seq4 | 0x04);
-
-            _IO.GraphicsController_Index.Byte = 4;
-            gc4 = _IO.GraphicsController_Data.Byte;
-
-            _IO.GraphicsController_Index.Byte = 5;
-            gc5 = _IO.GraphicsController_Data.Byte;
-
-            /* turn off even-odd addressing */
-            _IO.GraphicsController_Data.Byte = (byte)(gc5 & ~0x10);
-
-            _IO.GraphicsController_Index.Byte = 6;
-            gc6 = _IO.GraphicsController_Data.Byte;
-
-            /* turn off even-odd addressing */
-            _IO.GraphicsController_Data.Byte = (byte)(gc6 & ~0x02);
-
-            /* write font to plane P4 */
-            SetPlane(2);
-
-            /* write font 0 */
-            var seg = GetFramebufferSegment();
-
-
-            for (uint i = 0; i < 256; i++)
-            {
-                for (uint j = 0; j < aFontHeight; j++)
-                {
-                    seg[(i * 32) + j] = aFont[(i * aFontHeight) + j];
-                }
-            }
-
-            /* restore registers */
-            _IO.Sequencer_Index.Byte = 2;
-            _IO.Sequencer_Data.Byte = seq2;
-            _IO.Sequencer_Index.Byte = 4;
-            _IO.Sequencer_Data.Byte = seq4;
-            _IO.GraphicsController_Index.Byte = 4;
-            _IO.GraphicsController_Data.Byte = gc4;
-            _IO.GraphicsController_Index.Byte = 5;
-            _IO.GraphicsController_Data.Byte = gc5;
-            _IO.GraphicsController_Index.Byte = 6;
-            _IO.GraphicsController_Data.Byte = gc6;
-        }
-
-        public VGADriver()
-        {
-
-        }
-
-        /// <summary>
-        /// The closest color in the palette will be found to be drawn
-        /// This is quite slow, so whenever possible use the index of the color
-        /// </summary>
-        /// <param name="aX"></param>
-        /// <param name="aY"></param>
-        /// <param name="aColor"></param>
-        public void SetPixel(uint aX, uint aY, Color aColor)
-        {
-            //Find the closest index
-            var index = GetClosestColorInPalette(aColor);
-
-            //Draw
-            SetPixel(aX, aY, index);
-        }
-
-        private static Dictionary<int, uint> colorToPalette = new Dictionary<int, uint>();
-        public uint GetClosestColorInPalette(Color aColor)
-        {
-            if (colorToPalette.ContainsKey(aColor.ToArgb()))
-            {
-                return colorToPalette[aColor.ToArgb()];
-            }
-
-            uint index = 0;
-            double diff = 1000000;
-            for (uint i = 0; i < 2 << ((int)_ColorDepth - 1); i++) //iterate over the total palette
-            {
-                var paletteColor = _Palette[i];
-                var colorDiff = (aColor.R - paletteColor.R) * (aColor.R - paletteColor.R) * 0.3 + //Taken from https://stackoverflow.com/questions/1847092/given-an-rgb-value-what-would-be-the-best-way-to-find-the-closest-match-in-the-d
-                    (aColor.G - paletteColor.G) * (aColor.G - paletteColor.G) * 0.59 + (aColor.B - paletteColor.B) * (aColor.B - paletteColor.B) * 0.11;
-                //mDebugger.Send($"Standard Color: {aColor.R} {aColor.G} {aColor.B} Comparing to: {paletteColor.R} {paletteColor.G} {paletteColor.B} Diff: {colorDiff}");
-                if (colorDiff < diff)
-                {
-                    index = i;
-                    diff = colorDiff;
-                    if (diff == 0)
-                    {
-                        break;
-                    }
-                }
-            }
-            colorToPalette.Add(aColor.ToArgb(), index);
-            //mDebugger.Send("Chosen index: " + index);
-
-            return index;
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="aX"></param>
-        /// <param name="aY"></param>
-        /// <param name="aColor">The index of the color in the palette</param>
-        public void SetPixel(uint aX, uint aY, uint aColor)
-        {
-            //Global.mDebugger.Send($"Setting pixel: ({x}, {y}) to {color}");
-            if(_Mode == Mode.Text)
-            {
-                throw new Exception("Cannot set pixel in text mode");
-            }
-            switch (_ScreenSize)
-            {
-                case ScreenSize.Size640x480:
-                    switch (_ColorDepth)
-                    {
-                        case ColorDepth.BitDepth2:
-                            throw new NotImplementedException();
-                        case ColorDepth.BitDepth4:
-                            SetPixel640x480x4(aX, aY, aColor);
-                            break;
-                        case ColorDepth.BitDepth8:
-                            throw new NotImplementedException();
-                        case ColorDepth.BitDepth16:
-                            throw new NotImplementedException();
-                        default:
-                            throw new NotImplementedException();
-                    }
-                    break;
-                case ScreenSize.Size720x480:
-                    switch (_ColorDepth)
-                    {
-                        case ColorDepth.BitDepth2:
-                            throw new NotImplementedException();
-                        case ColorDepth.BitDepth4:
-                            SetPixel720x480x4(aX, aY, aColor);
-                            break;
-                        case ColorDepth.BitDepth8:
-                            throw new NotImplementedException();
-                        case ColorDepth.BitDepth16:
-                            throw new NotImplementedException();
-                        default:
-                            throw new NotImplementedException();
-                    }
-                    break;
-                case ScreenSize.Size320x200:
-                    switch (_ColorDepth)
-                    {
-                        case ColorDepth.BitDepth2:
-                            throw new NotImplementedException();
-                        case ColorDepth.BitDepth4:
-                            throw new NotImplementedException();
-                        case ColorDepth.BitDepth8:
-                            SetPixel320x200x8(aX, aY, aColor);
-                            break;
-                        case ColorDepth.BitDepth16:
-                            throw new NotImplementedException();
-                        default:
-                            throw new NotImplementedException();
-                    }
-                    break;
-                default:
-                    throw new NotImplementedException();
-            }
-        }
-
-        public uint GetPixel(uint aX, uint aY)
-        {
-            Global.mDebugger.Send($"GetPixel: ({aX},{aY})");
-            if (_Mode == Mode.Text)
-            {
-                throw new Exception("Cannot get pixel in text mode");
-            }
-            return _ScreenSize switch
-            {
-                ScreenSize.Size640x480 => _ColorDepth switch
-                {
-                    ColorDepth.BitDepth2 => throw new NotImplementedException(),
-                    ColorDepth.BitDepth4 => GetPixel640x480x4(aX, aY),
-                    ColorDepth.BitDepth8 => throw new NotImplementedException(),
-                    ColorDepth.BitDepth16 => throw new NotImplementedException(),
-                    _ => throw new NotImplementedException(),
-                },
-                ScreenSize.Size720x480 => _ColorDepth switch
-                {
-                    ColorDepth.BitDepth2 => throw new NotImplementedException(),
-                    ColorDepth.BitDepth4 => GetPixel720x480x4(aX, aY),
-                    ColorDepth.BitDepth8 => throw new NotImplementedException(),
-                    ColorDepth.BitDepth16 => throw new NotImplementedException(),
-                    _ => throw new NotImplementedException(),
-                },
-                ScreenSize.Size320x200 => _ColorDepth switch
-                {
-                    ColorDepth.BitDepth2 => throw new NotImplementedException(),
-                    ColorDepth.BitDepth4 => throw new NotImplementedException(),
-                    ColorDepth.BitDepth8 => GetPixel320x200x8(aX, aY),
-                    ColorDepth.BitDepth16 => throw new NotImplementedException(),
-                    _ => throw new NotImplementedException(),
-                },
-                _ => throw new NotImplementedException(),
-            };
-        }
+        #region Properties
 
         public enum TextSize
         {
@@ -376,11 +48,376 @@ namespace Cosmos.HAL
 
         public enum ColorDepth
         {
-            BitDepth2=2,
-            BitDepth4=4,
-            BitDepth8=8,
-            BitDepth16=16
+            BitDepth2 = 2,
+            BitDepth4 = 4,
+            BitDepth8 = 8,
+            BitDepth16 = 16
         };
+
+        /// <summary>
+        /// Get and set pixel width.
+        /// </summary>
+        public int PixelWidth { private set; get; }
+
+        /// <summary>
+        /// Get and set pixel height.
+        /// </summary>
+        public int PixelHeight { private set; get; }
+
+        /// <summary>
+        /// Get and set colors.
+        /// </summary>
+        public int Colors { private set; get; }
+
+        private enum Mode { Text, Graphical }
+
+        #endregion
+
+        #region Methods
+
+        //Get all the colors from the palette
+        public void ReadPalette()
+        {
+            debugger.Send("Reading set palette");
+            IOPort.Write16(DACIndex_Read, 0);
+            for (int i = 0; i < 256; i++)
+            {
+                int red = IOPort.Read8(DAC_Data) << 2;
+                int green = IOPort.Read8(DAC_Data) << 2;
+                int blue = IOPort.Read8(DAC_Data) << 2;
+                var argb = (red << 16) | (green << 8) | blue;
+                palette[i] = Color.FromArgb(argb);
+            }
+        }
+
+        public Color GetPaletteEntry(int aIndex)
+        {
+            return palette[aIndex];
+        }
+
+        public void SetPaletteEntry(int aIndex, Color aColor)
+        {
+            palette[aIndex] = aColor;
+            SetPaletteEntry(aIndex, aColor.R, aColor.G, aColor.B);
+        }
+
+        /// <summary>
+        /// Set palette entry.
+        /// </summary>
+        /// <param name="aIndex">Index.</param>
+        /// <param name="aR">Red.</param>
+        /// <param name="aG">Green.</param>
+        /// <param name="aB">Blue.</param>
+        public void SetPaletteEntry(int aIndex, byte aR, byte aG, byte aB)
+        {
+            palette[aIndex] = Color.FromArgb(aR, aG, aB);
+            IOPort.Write8(DACIndex_Write, (byte)aIndex);
+            IOPort.Write8(DAC_Data, (byte)(aR >> 2));
+            IOPort.Write8(DAC_Data, (byte)(aG >> 2));
+            IOPort.Write8(DAC_Data, (byte)(aB >> 2));
+        }
+
+        private void WriteVGARegisters(byte[] aRegisters)
+        {
+            int xIdx = 0;
+            byte i;
+
+            /* write MISCELLANEOUS reg */
+            IOPort.Write8(MiscellaneousOutput_Write, aRegisters[xIdx++]);
+            /* write SEQUENCER regs */
+            for (i = 0; i < numSeqRegs; i++)
+            {
+                IOPort.Write8(Sequencer_Index, i);
+                IOPort.Write8(Sequencer_Data, aRegisters[xIdx++]);
+            }
+            /* unlock CRTC registers */
+            IOPort.Write8(CRTController_Index, 0x03);
+            IOPort.Write8(CRTController_Data, (byte)(IOPort.Read8(CRTController_Data) | 0x80));
+            IOPort.Write8(CRTController_Index, 0x11);
+            IOPort.Write8(CRTController_Data, (byte)(IOPort.Read8(CRTController_Data) & 0x7F));
+
+            /* make sure they remain unlocked */
+            aRegisters[0x03] |= 0x80;
+            aRegisters[0x11] &= 0x7f;
+
+            /* write CRTC regs */
+            for (i = 0; i < numCRTCRegs; i++)
+            {
+                IOPort.Write8(CRTController_Index, i);
+                IOPort.Write8(CRTController_Data, aRegisters[xIdx++]);
+            }
+            /* write GRAPHICS CONTROLLER regs */
+            for (i = 0; i < numGCRegs; i++)
+            {
+                IOPort.Write8(GraphicsController_Index, i);
+                IOPort.Write8(GraphicsController_Data, aRegisters[xIdx++]);
+            }
+            /* write ATTRIBUTE CONTROLLER regs */
+            for (i = 0; i < numACRegs; i++)
+            {
+                var _ = IOPort.Read8(Instat_Read);
+                IOPort.Write8(AttributeController_Index, i);
+                IOPort.Write8(AttributeController_Write, aRegisters[xIdx++]);
+            }
+            /* lock 16-color palette and unblank display */
+            _ = IOPort.Read8(Instat_Read);
+            IOPort.Write8(AttributeController_Index, 0x20);
+            debugger.Send("Finished writing VGA registers");
+        }
+
+        /// <summary>
+        /// Set plane.
+        /// </summary>
+        /// <param name="p">p to set.</param>
+        private void SetPlane(byte aP)
+        {
+            aP &= 3;
+            var pmask = (byte)(1 << aP);
+            /* set read plane */
+            IOPort.Write8(GraphicsController_Index, 4);
+            IOPort.Write8(GraphicsController_Data, aP);
+            /* set write plane */
+            IOPort.Write8(Sequencer_Index, 2);
+            IOPort.Write8(Sequencer_Data, pmask);
+        }
+
+        //int offset = 0xb8000;
+        /// <summary>
+        /// Get frame buffer segment.
+        /// </summary>
+        /// <returns>MemoryBlock08 value.</returns>
+        /// <exception cref="Exception">Thrown when unable to determine memory segment.</exception>
+        private MemoryBlock GetFramebufferSegment()
+        {
+            IOPort.Write8(GraphicsController_Index, 6);
+            int seg = IOPort.Read8(GraphicsController_Data);
+            debugger.Send($"VGA: raw seg value: {seg}");
+            seg >>= 2;
+
+            seg &= 3;
+            return seg switch
+            {
+                0 or 1 => VGAMemoryBlock,
+                2 => MonochromeTextMemoryBlock,
+                3 => CGATextMemoryBlock,
+                _ => throw new Exception("Unable to determine memory segment!"),
+            };
+        }
+
+        /// <summary>
+        /// Write font.
+        /// </summary>
+        /// <param name="font">Font.</param>
+        /// <param name="font_height">Font height.</param>
+        /// <exception cref="Exception">Thrown when unable to determine memory segment.</exception>
+        public void WriteFont(byte[] aFont, byte aFontHeight)
+        {
+            /* save registers
+                set_plane() modifies GC 4 and SEQ 2, so save them as well */
+            IOPort.Write8(Sequencer_Index, 2);
+            var seq2 = IOPort.Read8(Sequencer_Data);
+
+            IOPort.Write8(Sequencer_Index, 4);
+            var seq4 = IOPort.Read8(Sequencer_Data);
+
+            /* turn off even-odd addressing (set flat addressing)
+            assume: chain-4 addressing already off */
+            IOPort.Write8(Sequencer_Data, (byte)(seq4 | 0x04));
+
+            IOPort.Write8(GraphicsController_Index, 4);
+            var gc4 = IOPort.Read8(GraphicsController_Data);
+
+            IOPort.Write8(GraphicsController_Index, 5);
+            var gc5 = IOPort.Read8(GraphicsController_Data);
+
+            /* turn off even-odd addressing */
+            IOPort.Write8(GraphicsController_Data, (byte)(gc5 & ~0x10));
+
+            IOPort.Write8(GraphicsController_Index, 6);
+            var gc6 = IOPort.Read8(GraphicsController_Data);
+
+            /* turn off even-odd addressing */
+            IOPort.Write8(GraphicsController_Data, (byte)(gc6 & ~0x02));
+
+            /* write font to plane P4 */
+            SetPlane(2);
+
+            /* write font 0 */
+            var seg = GetFramebufferSegment();
+
+
+            for (uint i = 0; i < 256; i++)
+            {
+                for (uint j = 0; j < aFontHeight; j++)
+                {
+                    seg[i * 32 + j] = aFont[i * aFontHeight + j];
+                }
+            }
+
+            /* restore registers */
+            IOPort.Write8(Sequencer_Index, 2);
+            IOPort.Write8(Sequencer_Data, seq2);
+            IOPort.Write8(Sequencer_Index, 4);
+            IOPort.Write8(Sequencer_Data, seq4);
+            IOPort.Write8(GraphicsController_Index, 4);
+            IOPort.Write8(GraphicsController_Data, gc4);
+            IOPort.Write8(GraphicsController_Index, 5);
+            IOPort.Write8(GraphicsController_Data, gc5);
+            IOPort.Write8(GraphicsController_Index, 6);
+            IOPort.Write8(GraphicsController_Data, gc6);
+        }
+
+        /// <summary>
+        /// The closest color in the palette will be found to be drawn
+        /// This is quite slow, so whenever possible use the index of the color
+        /// </summary>
+        /// <param name="aX"></param>
+        /// <param name="aY"></param>
+        /// <param name="aColor"></param>
+        public void SetPixel(uint aX, uint aY, Color aColor)
+        {
+            //Find the closest index
+            var index = GetClosestColorInPalette(aColor);
+
+            //Draw
+            SetPixel(aX, aY, index);
+        }
+
+        private static Dictionary<int, uint> colorToPalette = new Dictionary<int, uint>();
+        public uint GetClosestColorInPalette(Color aColor)
+        {
+            if (colorToPalette.ContainsKey(aColor.ToArgb()))
+            {
+                return colorToPalette[aColor.ToArgb()];
+            }
+
+            uint index = 0;
+            double diff = 1000000;
+            for (uint i = 0; i < 2 << ((int)colorDepth - 1); i++) //iterate over the total palette
+            {
+                var paletteColor = palette[i];
+                var colorDiff = (aColor.R - paletteColor.R) * (aColor.R - paletteColor.R) * 0.3 + //Taken from https://stackoverflow.com/questions/1847092/given-an-rgb-value-what-would-be-the-best-way-to-find-the-closest-match-in-the-d
+                    (aColor.G - paletteColor.G) * (aColor.G - paletteColor.G) * 0.59 + (aColor.B - paletteColor.B) * (aColor.B - paletteColor.B) * 0.11;
+                //mDebugger.Send($"Standard Color: {aColor.R} {aColor.G} {aColor.B} Comparing to: {paletteColor.R} {paletteColor.G} {paletteColor.B} Diff: {colorDiff}");
+                if (colorDiff < diff)
+                {
+                    index = i;
+                    diff = colorDiff;
+                    if (diff == 0)
+                    {
+                        break;
+                    }
+                }
+            }
+            colorToPalette.Add(aColor.ToArgb(), index);
+            //mDebugger.Send("Chosen index: " + index);
+
+            return index;
+        }
+
+        /// <summary>
+        ///
+        /// </summary>
+        /// <param name="aX"></param>
+        /// <param name="aY"></param>
+        /// <param name="aColor">The index of the color in the palette</param>
+        public void SetPixel(uint aX, uint aY, uint aColor)
+        {
+            //Global.mDebugger.Send($"Setting pixel: ({x}, {y}) to {color}");
+            if (mode == Mode.Text)
+            {
+                throw new Exception("Cannot set pixel in text mode");
+            }
+            switch (screenSize)
+            {
+                case ScreenSize.Size640x480:
+                    switch (colorDepth)
+                    {
+                        case ColorDepth.BitDepth2:
+                            throw new NotImplementedException();
+                        case ColorDepth.BitDepth4:
+                            SetPixel640x480x4(aX, aY, aColor);
+                            break;
+                        case ColorDepth.BitDepth8:
+                            throw new NotImplementedException();
+                        case ColorDepth.BitDepth16:
+                            throw new NotImplementedException();
+                        default:
+                            throw new NotImplementedException();
+                    }
+                    break;
+                case ScreenSize.Size720x480:
+                    switch (colorDepth)
+                    {
+                        case ColorDepth.BitDepth2:
+                            throw new NotImplementedException();
+                        case ColorDepth.BitDepth4:
+                            SetPixel720x480x4(aX, aY, aColor);
+                            break;
+                        case ColorDepth.BitDepth8:
+                            throw new NotImplementedException();
+                        case ColorDepth.BitDepth16:
+                            throw new NotImplementedException();
+                        default:
+                            throw new NotImplementedException();
+                    }
+                    break;
+                case ScreenSize.Size320x200:
+                    switch (colorDepth)
+                    {
+                        case ColorDepth.BitDepth2:
+                            throw new NotImplementedException();
+                        case ColorDepth.BitDepth4:
+                            throw new NotImplementedException();
+                        case ColorDepth.BitDepth8:
+                            SetPixel320x200x8(aX, aY, aColor);
+                            break;
+                        case ColorDepth.BitDepth16:
+                            throw new NotImplementedException();
+                        default:
+                            throw new NotImplementedException();
+                    }
+                    break;
+                default:
+                    throw new NotImplementedException();
+            }
+        }
+
+        public uint GetPixel(uint aX, uint aY)
+        {
+            if (mode == Mode.Text)
+            {
+                throw new Exception("Cannot get pixel in text mode");
+            }
+            return screenSize switch
+            {
+                ScreenSize.Size640x480 => colorDepth switch
+                {
+                    ColorDepth.BitDepth2 => throw new NotImplementedException(),
+                    ColorDepth.BitDepth4 => GetPixel640x480x4(aX, aY),
+                    ColorDepth.BitDepth8 => throw new NotImplementedException(),
+                    ColorDepth.BitDepth16 => throw new NotImplementedException(),
+                    _ => throw new NotImplementedException(),
+                },
+                ScreenSize.Size720x480 => colorDepth switch
+                {
+                    ColorDepth.BitDepth2 => throw new NotImplementedException(),
+                    ColorDepth.BitDepth4 => GetPixel720x480x4(aX, aY),
+                    ColorDepth.BitDepth8 => throw new NotImplementedException(),
+                    ColorDepth.BitDepth16 => throw new NotImplementedException(),
+                    _ => throw new NotImplementedException(),
+                },
+                ScreenSize.Size320x200 => colorDepth switch
+                {
+                    ColorDepth.BitDepth2 => throw new NotImplementedException(),
+                    ColorDepth.BitDepth4 => throw new NotImplementedException(),
+                    ColorDepth.BitDepth8 => GetPixel320x200x8(aX, aY),
+                    ColorDepth.BitDepth16 => throw new NotImplementedException(),
+                    _ => throw new NotImplementedException(),
+                },
+                _ => throw new NotImplementedException(),
+            };
+        }
 
         /// <summary>
         /// Set text size.
@@ -389,8 +426,8 @@ namespace Cosmos.HAL
         /// <exception cref="Exception">Thrown when text size invalid / unable to determine memory segment.</exception>
         public void SetTextMode(TextSize aSize)
         {
-            mDebugger.Send("Setting TextMode:" + aSize.ToString());
-            _Mode = Mode.Text;
+            debugger.Send("Setting TextMode:" + aSize.ToString());
+            mode = Mode.Text;
             switch (aSize)
             {
                 case TextSize.Size40x25:
@@ -422,7 +459,7 @@ namespace Cosmos.HAL
             }
 
             //Clear the memory
-            _IO.CGATextMemoryBlock.Fill(0);
+            CGATextMemoryBlock.Fill(0);
 
             int[] colors = new int[]
             {
@@ -443,16 +480,16 @@ namespace Cosmos.HAL
         /// <exception cref="Exception">Thrown when aDepth not supported for the aSize / unknown screen size.</exception>
         public void SetGraphicsMode(ScreenSize aSize, ColorDepth aDepth)
         {
-            mDebugger.Send("Setting GraphicsMode:" + ((int)aSize).ToString() + " - " + ((int)aDepth).ToString());
-            _ScreenSize = aSize;
-            _ColorDepth = aDepth;
-            _Mode = Mode.Graphical;
+            debugger.Send("Setting GraphicsMode:" + ((int)aSize).ToString() + " - " + ((int)aDepth).ToString());
+            screenSize = aSize;
+            colorDepth = aDepth;
+            mode = Mode.Graphical;
             switch (aSize)
             {
                 case ScreenSize.Size320x200:
                     if (aDepth == ColorDepth.BitDepth8)
                     {
-                        mDebugger.Send("Setting graphic mode to 320x200@256");
+                        debugger.Send("Setting graphic mode to 320x200@256");
                         WriteVGARegisters(_G_320x200x8);
 
                         PixelWidth = 320;
@@ -461,7 +498,7 @@ namespace Cosmos.HAL
                     }
                     else if (aDepth == ColorDepth.BitDepth4)
                     {
-                        mDebugger.Send("Setting graphic mode to 320x200@16");
+                        debugger.Send("Setting graphic mode to 320x200@16");
                         WriteVGARegisters(_G_320x200x4);
 
                         PixelWidth = 320;
@@ -476,7 +513,7 @@ namespace Cosmos.HAL
                 case ScreenSize.Size640x480:
                     if (aDepth == ColorDepth.BitDepth2)
                     {
-                        mDebugger.Send("Setting graphic mode to 640x480@4");
+                        debugger.Send("Setting graphic mode to 640x480@4");
                         WriteVGARegisters(_G_640x480x2);
 
                         PixelWidth = 640;
@@ -485,7 +522,7 @@ namespace Cosmos.HAL
                     }
                     else if (aDepth == ColorDepth.BitDepth4)
                     {
-                        mDebugger.Send("Setting graphic mode to 640x480@16");
+                        debugger.Send("Setting graphic mode to 640x480@16");
 
                         WriteVGARegisters(_G_640x480x4);
 
@@ -501,7 +538,7 @@ namespace Cosmos.HAL
                 case ScreenSize.Size720x480:
                     if (aDepth == ColorDepth.BitDepth4)
                     {
-                        mDebugger.Send("Setting graphic mode to 720x480@16");
+                        debugger.Send("Setting graphic mode to 720x480@16");
                         WriteVGARegisters(_G_720x480x4);
 
                         PixelWidth = 720;
@@ -520,34 +557,34 @@ namespace Cosmos.HAL
             // Clear the cached results as the palette will change
             colorToPalette = new Dictionary<int, uint>();
             // Initialize the palette
-            _Palette[0] = Color.Black;
+            palette[0] = Color.Black;
             switch (aDepth)
             {
                 case ColorDepth.BitDepth2:
                     //There are two different color modes available, Assume we are using palette 0
-                    _Palette[1] = Color.Green;
-                    _Palette[2] = Color.Red;
-                    _Palette[3] = Color.Brown;
+                    palette[1] = Color.Green;
+                    palette[2] = Color.Red;
+                    palette[3] = Color.Brown;
                     //_Palette[1] = Color.Cyan;
                     //_Palette[2] = Color.Magenta;
                     //_Palette[3] = Color.Gray;
                     break;
                 case ColorDepth.BitDepth4:
-                    _Palette[1] = Color.Blue;
-                    _Palette[2] = Color.Green;
-                    _Palette[3] = Color.Cyan;
-                    _Palette[4] = Color.Red;
-                    _Palette[5] = Color.DarkMagenta;
-                    _Palette[6] = Color.Brown;
-                    _Palette[7] = Color.LightGray;
-                    _Palette[8] = Color.DarkGray;
-                    _Palette[9] = Color.LightBlue;
-                    _Palette[10] = Color.LightGreen;
-                    _Palette[11] = Color.LightCyan;
-                    _Palette[12] = Color.Pink;
-                    _Palette[13] = Color.Magenta;
-                    _Palette[14] = Color.Yellow;
-                    _Palette[15] = Color.White;
+                    palette[1] = Color.Blue;
+                    palette[2] = Color.Green;
+                    palette[3] = Color.Cyan;
+                    palette[4] = Color.Red;
+                    palette[5] = Color.DarkMagenta;
+                    palette[6] = Color.Brown;
+                    palette[7] = Color.LightGray;
+                    palette[8] = Color.DarkGray;
+                    palette[9] = Color.LightBlue;
+                    palette[10] = Color.LightGreen;
+                    palette[11] = Color.LightCyan;
+                    palette[12] = Color.Pink;
+                    palette[13] = Color.Magenta;
+                    palette[14] = Color.Yellow;
+                    palette[15] = Color.White;
                     break;
                 case ColorDepth.BitDepth8:
                     int[] colors = new int[256] // Credits to https://commons.wikimedia.org/w/index.php?title=User:Psychonaut/ipalette.sh&oldid=8607095
@@ -580,8 +617,8 @@ namespace Cosmos.HAL
                         0x000000,0x000000,0x000000,0x000000,0x000000,0x000000
                     };
                     for (int i = 0; i < 256; i++)
-                    { 
-                        _Palette[i] = Color.FromArgb(colors[i]);
+                    {
+                        palette[i] = Color.FromArgb(colors[i]);
                     }
                     break;
                 case ColorDepth.BitDepth16:
@@ -590,30 +627,28 @@ namespace Cosmos.HAL
                     break;
             }
 
-            for (int i = 0; i < (2 << ((int)aDepth - 1)); i++)
+            for (int i = 0; i < 2 << ((int)aDepth - 1); i++)
             {
-                SetPaletteEntry(i, _Palette[i]);
+                SetPaletteEntry(i, palette[i]);
             }
         }
 
         public void SetPixel320x200x8(uint aX, uint aY, uint aC)
         {
-            uint where = (aY * 320) + aX;
+            uint where = aY * 320 + aX;
             byte color = (byte)(aC & 0xFF);
 
-            _IO.VGAMemoryBlock.Bytes[where] = color;
+            VGAMemoryBlock.Bytes[where] = color;
         }
 
         public uint GetPixel320x200x8(uint aX, uint aY)
         {
-            mDebugger.Send($"GetPixel320x200x8({aX},{aY})");
-            return _IO.VGAMemoryBlock.Bytes[(aY * 320) + aX];
+            return VGAMemoryBlock.Bytes[aY * 320 + aX];
         }
-
 
         public void SetPixel640x480x4(uint aX, uint aY, uint aC)
         {
-            uint offset = (uint)(aX / 8 + (PixelWidth / 8) * aY);
+            uint offset = (uint)(aX / 8 + PixelWidth / 8 * aY);
 
             aX = (aX & 7) * 1;
 
@@ -626,12 +661,12 @@ namespace Cosmos.HAL
 
                 if ((pmask & aC) != 0)
                 {
-                    _IO.VGAMemoryBlock.Bytes[offset] = (byte)(_IO.VGAMemoryBlock.Bytes[offset] | mask);
+                    VGAMemoryBlock.Bytes[offset] = (byte)(VGAMemoryBlock.Bytes[offset] | mask);
                 }
 
                 else
                 {
-                    _IO.VGAMemoryBlock.Bytes[offset] = (byte)(_IO.VGAMemoryBlock.Bytes[offset] & ~mask);
+                    VGAMemoryBlock.Bytes[offset] = (byte)(VGAMemoryBlock.Bytes[offset] & ~mask);
                 }
 
                 pmask <<= 1;
@@ -640,8 +675,7 @@ namespace Cosmos.HAL
 
         public uint GetPixel640x480x4(uint aX, uint aY)
         {
-            mDebugger.Send($"GetPixel640x480x4({aX},{aY})");
-            uint offset = (uint)(aX / 8 + (PixelWidth / 8) * aY);
+            uint offset = (uint)(aX / 8 + PixelWidth / 8 * aY);
 
             uint pmask = 1;
 
@@ -651,7 +685,7 @@ namespace Cosmos.HAL
             {
                 SetPlane(p);
 
-                if (_IO.VGAMemoryBlock.Bytes[offset] == 255)
+                if (VGAMemoryBlock.Bytes[offset] == 255)
                 {
                     color += pmask;
                 }
@@ -664,7 +698,7 @@ namespace Cosmos.HAL
 
         public void SetPixel720x480x4(uint aX, uint aY, uint aC)
         {
-            uint offset = (uint)(aX / 8 + (PixelWidth / 8) * aY);
+            uint offset = (uint)(aX / 8 + PixelWidth / 8 * aY);
 
             aX = (aX & 7) * 1;
 
@@ -677,12 +711,12 @@ namespace Cosmos.HAL
 
                 if ((pmask & aC) != 0)
                 {
-                    _IO.VGAMemoryBlock.Bytes[offset] = (byte)(_IO.VGAMemoryBlock.Bytes[offset] | mask);
+                    VGAMemoryBlock.Bytes[offset] = (byte)(VGAMemoryBlock.Bytes[offset] | mask);
                 }
 
                 else
                 {
-                    _IO.VGAMemoryBlock.Bytes[offset] = (byte)(_IO.VGAMemoryBlock.Bytes[offset] & ~mask);
+                    VGAMemoryBlock.Bytes[offset] = (byte)(VGAMemoryBlock.Bytes[offset] & ~mask);
                 }
 
                 pmask <<= 1;
@@ -691,9 +725,7 @@ namespace Cosmos.HAL
 
         public uint GetPixel720x480x4(uint aX, uint aY)
         {
-            mDebugger.Send($"GetPixel720x480x4({aX},{aY})");
-
-            uint offset = (uint)(aX / 8 + (PixelWidth / 8) * aY);
+            uint offset = (uint)(aX / 8 + PixelWidth / 8 * aY);
             int pixelOffset = (int)(7 - aX % 8);
             uint pmask = 1;
 
@@ -703,7 +735,7 @@ namespace Cosmos.HAL
             {
                 SetPlane(p);
 
-                var v = _IO.VGAMemoryBlock.Bytes[offset];
+                var v = VGAMemoryBlock.Bytes[offset];
                 if ((v & (1 << pixelOffset)) != 0)
                 {
                     color += pmask;
@@ -712,23 +744,8 @@ namespace Cosmos.HAL
                 pmask <<= 1;
             }
 
-            return (uint)_Palette[color].ToArgb();
+            return (uint)palette[color].ToArgb();
         }
-
-        /// <summary>
-        /// Get and set pixel width.
-        /// </summary>
-        public int PixelWidth { private set; get; }
-
-        /// <summary>
-        /// Get and set pixel height.
-        /// </summary>
-        public int PixelHeight { private set; get; }
-
-        /// <summary>
-        /// Get and set colors.
-        /// </summary>
-        public int Colors { private set; get; }
 
         /// <summary>
         /// Draw Filled Rectangle
@@ -741,14 +758,14 @@ namespace Cosmos.HAL
         /// <exception cref="Exception">Thrown when Textmode enabled.</exception>
 		public void DrawFilledRectangle(int aX, int aY, int aW, int aH, uint aColor)
         {
-            if (_Mode == Mode.Text)
+            if (mode == Mode.Text)
             {
                 throw new Exception("Cannot draw filled rectangle in text mode");
             }
-            switch (_ScreenSize)
+            switch (screenSize)
             {
                 case ScreenSize.Size640x480:
-                    switch (_ColorDepth)
+                    switch (colorDepth)
                     {
                         case ColorDepth.BitDepth2:
                             throw new NotImplementedException();
@@ -770,7 +787,7 @@ namespace Cosmos.HAL
                     }
                     break;
                 case ScreenSize.Size720x480:
-                    switch (_ColorDepth)
+                    switch (colorDepth)
                     {
                         case ColorDepth.BitDepth2:
                             throw new NotImplementedException();
@@ -792,7 +809,7 @@ namespace Cosmos.HAL
                     }
                     break;
                 case ScreenSize.Size320x200:
-                    switch (_ColorDepth)
+                    switch (colorDepth)
                     {
                         case ColorDepth.BitDepth2:
                             throw new NotImplementedException();
@@ -818,50 +835,94 @@ namespace Cosmos.HAL
             }
         }
 
-        private readonly Color[] _Palette = new Color[256];
+        #endregion
 
-        //Get all the colors from the palette
-        public void ReadPalette()
-        {
-            mDebugger.Send("Reading set palette");
-            _IO.DACIndex_Read.Word = 0;
-            string values = "";
-            for (int i = 0; i < 256; i++)
-            {
-                int red = _IO.DAC_Data.Byte << 2;
-                int green = _IO.DAC_Data.Byte << 2;
-                int blue = _IO.DAC_Data.Byte << 2;
-                var argb = (red << 16) | (green << 8) | blue;
-                _Palette[i] = Color.FromArgb(argb);
-            }
-        }
+        #region Fields
 
-        public Color GetPaletteEntry(int aIndex)
-        {
-            return _Palette[aIndex];
-        }
-        
-        public void SetPaletteEntry(int aIndex, Color aColor)
-        {
-            _Palette[aIndex] = aColor;
-            SetPaletteEntry(aIndex, aColor.R, aColor.G, aColor.B);
-        }
+        private readonly Color[] palette = new Color[256];
+        internal Debugger debugger = new("VGA");
+        private const byte numSeqRegs = 5;
+        private const byte numCRTCRegs = 25;
+        private const byte numGCRegs = 9;
+        private const byte numACRegs = 21;
+
+        ScreenSize screenSize;
+        ColorDepth colorDepth;
+        Mode mode;
 
         /// <summary>
-        /// Set palette entry.
+        /// Attribute controller index port.
         /// </summary>
-        /// <param name="aIndex">Index.</param>
-        /// <param name="aR">Red.</param>
-        /// <param name="aG">Green.</param>
-        /// <param name="aB">Blue.</param>
-        public void SetPaletteEntry(int aIndex, byte aR, byte aG, byte aB)
-        {
-            _Palette[aIndex] = Color.FromArgb(aR, aG, aB);
-            _IO.DACIndex_Write.Byte = (byte)aIndex;
-            _IO.DAC_Data.Byte = (byte)(aR >> 2);
-            _IO.DAC_Data.Byte = (byte)(aG >> 2);
-            _IO.DAC_Data.Byte = (byte)(aB >> 2);
-        }
+        public const int AttributeController_Index = 0x3C0;
+        /// <summary>
+        /// Attribute controller write port.
+        /// </summary>
+        public const int AttributeController_Write = 0x3C0;
+        /// <summary>
+        /// Attribute controller read port.
+        /// </summary>
+        public const int AttributeController_Read = 0x3C1;
+        /// <summary>
+        /// Miscellaneous output write port.
+        /// </summary>
+        public const int MiscellaneousOutput_Write = 0x3C2;
+        /// <summary>
+        /// Sequencer index port.
+        /// </summary>
+        public const int Sequencer_Index = 0x3C4;
+        /// <summary>
+        /// Sequencer data port.
+        /// </summary>
+        public const int Sequencer_Data = 0x3C5;
+        /// <summary>
+        /// DAC index read port.
+        /// </summary>
+        public const int DACIndex_Read = 0x3C7;
+        /// <summary>
+        /// DAC index write port.
+        /// </summary>
+        public const int DACIndex_Write = 0x3C8;
+        /// <summary>
+        /// DAC data port.
+        /// </summary>
+        public const int DAC_Data = 0x3C9;
+        /// <summary>
+        /// Graphics controller index port.
+        /// </summary>
+        public const int GraphicsController_Index = 0x3CE;
+        /// <summary>
+        /// Graphics controller data port.
+        /// </summary>
+        public const int GraphicsController_Data = 0x3CF;
+        /// <summary>
+        /// CRT controller index port.
+        /// </summary>
+        public const int CRTController_Index = 0x3D4;
+        /// <summary>
+        /// CRT controller data port.
+        /// </summary>
+        public const int CRTController_Data = 0x3D5;
+        /// <summary>
+        /// Instant read port.
+        /// </summary>
+        public const int Instat_Read = 0x3DA;
+
+        /// <summary>
+        /// 128KB at 0xA0000
+        /// </summary>
+        public readonly MemoryBlock VGAMemoryBlock = new MemoryBlock(0xA0000, 1024 * 128);
+
+        /// <summary>
+        /// 32KB at 0xB0000
+        /// </summary>
+        public readonly MemoryBlock MonochromeTextMemoryBlock = new MemoryBlock(0xB0000, 1024 * 32);
+
+        /// <summary>
+        /// 32KB at 0xB8000
+        /// </summary>
+        public readonly MemoryBlock CGATextMemoryBlock = new MemoryBlock(0xB8000, 1024 * 32);
+
+        #endregion
 
         #region FONTS
 
@@ -1670,7 +1731,5 @@ namespace Cosmos.HAL
                                             };
 
         #endregion
-
-        private enum Mode { Text, Graphical}
     }
 }

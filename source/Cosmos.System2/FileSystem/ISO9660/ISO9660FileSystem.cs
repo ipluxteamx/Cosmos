@@ -36,7 +36,7 @@ namespace Cosmos.System.FileSystem.ISO9660
             //Read primary descriptor
             var primaryDescriptor = aDevice.NewBlockArray(1);
             aDevice.ReadBlock(0x10, 1, ref primaryDescriptor);
-            var r = new BinaryReader(new MemoryStream(primaryDescriptor));
+            using var r = new BinaryReader(new MemoryStream(primaryDescriptor));
 
             var volType = r.ReadByte();
             var id = r.ReadBytes(5);
@@ -54,7 +54,7 @@ namespace Cosmos.System.FileSystem.ISO9660
 
             r.BaseStream.Position = 156;
             var b = r.ReadBytes(34);
-            BinaryReader rootdir = new BinaryReader(new MemoryStream(b));
+            using BinaryReader rootdir = new BinaryReader(new MemoryStream(b));
             RootDir = ReadDirectoryEntry(rootdir);
         }
         /// <summary>
@@ -204,16 +204,18 @@ namespace Cosmos.System.FileSystem.ISO9660
             foreach (var item in dirEntries)
             {
                 DirectoryEntryTypeEnum type;
+                var fName = item.FileID;
+
                 if ((item.FileFlags & (1 << 1)) != 0)
                 {
                     type = DirectoryEntryTypeEnum.Directory;
                 }
                 else
                 {
-                    type = DirectoryEntryTypeEnum.File;
+                    type = DirectoryEntryTypeEnum.File; //remove the ;1 part from the file name
+                    fName = fName.Remove(fName.Length - 2);
                 }
-                var properID = item.FileID.Remove(item.FileID.Length - 2); //remove the ;1 part from the file name
-                entries.Add(new ISO9660DirectoryEntry(item, this, parent, Path.Combine(parent.mFullPath, properID), properID, 0, type));
+                entries.Add(new ISO9660DirectoryEntry(item, this, parent, Path.Combine(parent.mFullPath, fName), fName, 0, type));
             }
             return entries;
         }

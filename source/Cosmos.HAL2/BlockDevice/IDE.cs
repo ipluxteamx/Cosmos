@@ -1,26 +1,40 @@
 using System;
 using System.Collections.Generic;
-using Cosmos.HAL.BlockDevice;
+using Cosmos.Core.IOGroup;
 
 namespace Cosmos.HAL.BlockDevice
 {
     public class IDE
     {
-        private static PCIDevice xDevice = HAL.PCI.GetDeviceClass(HAL.ClassID.MassStorageController,
-                                                                  HAL.SubclassID.IDEInterface);
-        private static List<BlockDevice> ATAPIDevices = new List<BlockDevice>();
-        private static List<Partition> ATAPIPartitions = new List<Partition>();
+        private static readonly PCIDevice xDevice = PCI.GetDeviceClass(ClassID.MassStorageController,
+                                                                  SubclassID.IDEInterface);
+        private static readonly List<BlockDevice> ATAPIDevices = new();
+        private static readonly List<Partition> ATAPIPartitions = new();
+
+        // These are common/fixed pieces of hardware. PCI, USB etc should be self discovering
+        // and not hardcoded like this.
+        // Further more some kind of security needs to be applied to these, but even now
+        // at least we have isolation between the consumers that use these.
+        /// <summary>
+        /// Primary ATA.
+        /// </summary>
+        public static readonly ATA PrimayATA = new ATA(false);
+        /// <summary>
+        /// Secondary ATA.
+        /// </summary>
+        public static readonly ATA SecondaryATA = new ATA(true);
+
         internal static void InitDriver()
         {
             if (xDevice != null)
             {
-                Console.WriteLine("ATA Primary Master");
+                Console.WriteLine("Initializing ATA Primary Master...");
                 Initialize(Ata.ControllerIdEnum.Primary, Ata.BusPositionEnum.Master);
-                Console.WriteLine("ATA Primary Slave");
+                Console.WriteLine("Initializing ATA Primary Slave...");
                 Initialize(Ata.ControllerIdEnum.Primary, Ata.BusPositionEnum.Slave);
-                Console.WriteLine("ATA Secondary Master");
+                Console.WriteLine("Initializing ATA Secondary Master...");
                 Initialize(Ata.ControllerIdEnum.Secondary, Ata.BusPositionEnum.Master);
-                Console.WriteLine("ATA Secondary Slave");
+                Console.WriteLine("Initializing ATA Secondary Slave...");
                 Initialize(Ata.ControllerIdEnum.Secondary, Ata.BusPositionEnum.Slave);
             }
 
@@ -36,7 +50,7 @@ namespace Cosmos.HAL.BlockDevice
         }
         private static void Initialize(Ata.ControllerIdEnum aControllerID, Ata.BusPositionEnum aBusPosition)
         {
-            var xIO = aControllerID == Ata.ControllerIdEnum.Primary ? Core.Global.BaseIOGroups.ATA1 : Core.Global.BaseIOGroups.ATA2;
+            var xIO = aControllerID == Ata.ControllerIdEnum.Primary ? PrimayATA : SecondaryATA;
             var xATA = new ATA_PIO(xIO, aControllerID, aBusPosition);
             if (xATA.DriveType == ATA_PIO.SpecLevel.Null)
             {
@@ -45,17 +59,16 @@ namespace Cosmos.HAL.BlockDevice
             else if (xATA.DriveType == ATA_PIO.SpecLevel.ATA)
             {
                 BlockDevice.Devices.Add(xATA);
-                Ata.AtaDebugger.Send("ATA device with speclevel ATA found.");
+                Ata.ataDebugger.Send("ATA device with speclevel ATA found.");
             }
             else if (xATA.DriveType == ATA_PIO.SpecLevel.ATAPI)
             {
-                var atapi = new ATAPI(xATA);
-
+                ATAPI atapi = new(xATA);
                 //TODO: Replace 1000000 with proper size once ATAPI driver implements it
                 //Add the atapi device to an array so we reorder them to be last
                 ATAPIDevices.Add(atapi);
                 ATAPIPartitions.Add(new Partition(atapi, 0, 1000000));
-                Ata.AtaDebugger.Send("ATA device with speclevel ATAPI found");
+                Ata.ataDebugger.Send("ATA device with speclevel ATAPI found");
                 return;
             }
 
@@ -66,10 +79,10 @@ namespace Cosmos.HAL.BlockDevice
         {
             if (GPT.IsGPTPartition(device))
             {
-                var xGPT = new GPT(device);
+                GPT xGPT = new(device);
 
-                Ata.AtaDebugger.Send("Number of GPT partitions found:");
-                Ata.AtaDebugger.SendNumber(xGPT.Partitions.Count);
+                Ata.ataDebugger.Send("Number of GPT partitions found:");
+                Ata.ataDebugger.SendNumber(xGPT.Partitions.Count);
                 int i = 0;
                 foreach (var part in xGPT.Partitions)
                 {
@@ -79,14 +92,14 @@ namespace Cosmos.HAL.BlockDevice
             }
             else
             {
-                var mbr = new MBR(device);
+                MBR mbr = new(device);
 
                 if (mbr.EBRLocation != 0)
                 {
                     //EBR Detected
                     var xEbrData = new byte[512];
                     device.ReadBlock(mbr.EBRLocation, 1U, ref xEbrData);
-                    var xEBR = new EBR(xEbrData);
+                    EBR xEBR = new(xEbrData);
 
                     for (int i = 0; i < xEBR.Partitions.Count; i++)
                     {
